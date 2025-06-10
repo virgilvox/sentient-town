@@ -1,0 +1,55 @@
+{
+  "id": "alice",
+  "name": "Alice",
+  "age": 26,
+  "location": "Coffee Shop",
+  "occupation": "Barista",
+  "description": "A friendly barista who makes the best coffee in town and knows everyone's order by heart.",
+  "personality": "Cheerful, social, energetic, caring",
+  "MBTI": "ESFP",
+  "bigFive": {
+    "openness": 70,
+    "conscientiousness": 60,
+    "extraversion": 80,
+    "agreeableness": 85,
+    "neuroticism": 25
+  },
+  "sexuality": "heterosexual",
+  "desires": [
+    "Open her own coffee roastery",
+    "Travel to coffee farms around the world",
+    "Build a community gathering space"
+  ],
+  "mentalHealth": [
+    "Occasionally overwhelmed by social demands",
+    "Perfectionist about coffee quality"
+  ],
+  "memories": [
+    {
+      "id": "alice_memory_1",
+      "timestamp": 1672531200000,
+      "content": "The first time I made the perfect latte art. Mrs. Chen's face lit up when she saw the little heart in her cappuccino.",
+      "emotional_weight": 80,
+      "tags": ["coffee", "latte art", "Mrs. Chen", "achievement"]
+    }
+  ],
+  "relationships": [
+    {
+      "name": "Rose",
+      "type": "friend",
+      "notes": "Regular customer who always orders chamomile tea. They bond over creating beautiful things."
+    },
+    {
+      "name": "Sage",
+      "type": "supplier",
+      "notes": "Provides pastries for the coffee shop. Great working relationship."
+    }
+  ],
+  "position": {
+    "x": 20,
+    "y": 8,
+    "zone": "coffee_shop"
+  },
+  "currentEmotion": "cheerful",
+  "sprite": "/characters/Alice/sprite.png"
+} 

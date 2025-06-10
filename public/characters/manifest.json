@@ -1,0 +1,12 @@
+{
+  "version": "1.0",
+  "description": "Character manifest for Sentient Town simulation",
+  "characters": [
+    "Rose",
+    "Alice", 
+    "Griff",
+    "John",
+    "Sage"
+  ],
+  "lastUpdated": "2024-12-19T12:00:00Z"
+} 

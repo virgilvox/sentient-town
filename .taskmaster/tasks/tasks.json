@@ -1,0 +1,220 @@
+{
+  "tasks": [
+    {
+      "id": 1,
+      "title": "Project Setup and Dependencies",
+      "description": "Initialize Vue 3 project with required dependencies and folder structure",
+      "status": "done",
+      "priority": "high",
+      "dependencies": [],
+      "details": "Set up Vue 3 with Composition API, Pinia for state management, and create the required folder structure for characters, map, and simulation data",
+      "testStrategy": "Verify project builds and runs successfully with all dependencies installed"
+    },
+    {
+      "id": 2,
+      "title": "Data Structure Models",
+      "description": "Create TypeScript interfaces and models for characters, zones, events, and simulation data",
+      "status": "done",
+      "priority": "high",
+      "dependencies": [
+        1
+      ],
+      "details": "Define interfaces for Character profiles, Zone definitions, Events, Conversations, and all JSON data structures outlined in the PRD",
+      "testStrategy": "Ensure all interfaces are properly typed and can be used throughout the application"
+    },
+    {
+      "id": 3,
+      "title": "Sample Data Creation",
+      "description": "Create initial sample characters, map, and zone data files",
+      "status": "done",
+      "priority": "medium",
+      "dependencies": [
+        2
+      ],
+      "details": "Create sample character profiles (Rose, Sage, Griff, John), map.png, zones.json, and initial simulation data files",
+      "testStrategy": "Verify all sample data files load correctly and conform to defined interfaces"
+    },
+    {
+      "id": 4,
+      "title": "Pinia State Management Setup",
+      "description": "Set up Pinia stores for characters, simulation, events, and UI state",
+      "status": "done",
+      "priority": "high",
+      "dependencies": [
+        2
+      ],
+      "details": "Create stores for character management, simulation state, events tracking, conversation logs, and UI state with localStorage integration",
+      "testStrategy": "Test state management with sample data and verify localStorage persistence"
+    },
+    {
+      "id": 5,
+      "title": "localStorage Management System",
+      "description": "Implement diff-based localStorage system for state persistence",
+      "status": "done",
+      "priority": "high",
+      "dependencies": [
+        4
+      ],
+      "details": "Create system to save only changes/diffs to localStorage compared to original JSON files, with load/save functionality",
+      "testStrategy": "Test data persistence and diff calculation accuracy"
+    },
+    {
+      "id": 6,
+      "title": "Canvas Rendering Engine",
+      "description": "Create canvas-based 2D grid rendering system for the town map",
+      "status": "done",
+      "priority": "high",
+      "dependencies": [
+        3
+      ],
+      "details": "Implement canvas rendering with map.png background, character sprites, movement animations, and grid overlay for edit mode",
+      "testStrategy": "Verify map renders correctly with character sprites and smooth movement animations"
+    },
+    {
+      "id": 7,
+      "title": "Character Movement and Positioning",
+      "description": "Implement character positioning, movement, and sprite animation system",
+      "status": "done",
+      "priority": "high",
+      "dependencies": [
+        6
+      ],
+      "details": "Create system for character position tracking, movement animations, and sprite rendering on the canvas grid",
+      "testStrategy": "Test character movement smoothness and position accuracy"
+    },
+    {
+      "id": 8,
+      "title": "Top Navigation Bar",
+      "description": "Create the top bar with API key input, edit mode toggle, time speed control, and save button",
+      "status": "done",
+      "priority": "medium",
+      "dependencies": [
+        4
+      ],
+      "details": "Implement top navigation with Claude Haiku API key field, edit town toggle, time speed dropdown (1x, 2x, 4x), and save all button",
+      "testStrategy": "Verify all controls function correctly and state changes are reflected"
+    },
+    {
+      "id": 9,
+      "title": "Tabbed Control Panel Layout",
+      "description": "Create the right panel with tab navigation for all control panels",
+      "status": "done",
+      "priority": "medium",
+      "dependencies": [
+        8
+      ],
+      "details": "Implement tabbed interface with Character Editor, Events, Inject Prompt, Conversations, and Introspection tabs",
+      "testStrategy": "Test tab switching and ensure proper content display for each tab"
+    },
+    {
+      "id": 10,
+      "title": "Character Editor Tab",
+      "description": "Build comprehensive character editing interface with all personality and relationship fields",
+      "status": "done",
+      "priority": "high",
+      "dependencies": [
+        9
+      ],
+      "details": "Create character selector dropdown, editable fields for name, MBTI, Big Five traits (sliders), sexuality, desires, mental health, memories log, and relationships with tag-based connections",
+      "testStrategy": "Test character data editing and verify changes are saved to localStorage"
+    },
+    {
+      "id": 11,
+      "title": "Events Log Tab",
+      "description": "Create real-time scrollable feed for simulation events",
+      "status": "done",
+      "priority": "medium",
+      "dependencies": [
+        9
+      ],
+      "details": "Implement events log with timestamp, involved characters, event summary, and tone display with real-time updates",
+      "testStrategy": "Verify events display correctly and scroll performance is smooth"
+    },
+    {
+      "id": 12,
+      "title": "Inject Prompt Tab",
+      "description": "Build scenario injection interface for adding events to the simulation",
+      "status": "done",
+      "priority": "medium",
+      "dependencies": [
+        9
+      ],
+      "details": "Create prompt input field, target selector (global or specific characters), and integration with simulation loop for next Claude call",
+      "testStrategy": "Test prompt injection and verify it affects the next simulation tick"
+    },
+    {
+      "id": 13,
+      "title": "Conversations Tab",
+      "description": "Display active and recent character dialogues with filtering",
+      "status": "done",
+      "priority": "medium",
+      "dependencies": [
+        9
+      ],
+      "details": "Show conversations between characters with expandable log view per pair, participant filtering, and real-time updates",
+      "testStrategy": "Test conversation display and filtering functionality"
+    },
+    {
+      "id": 14,
+      "title": "Introspection Tab",
+      "description": "Show internal thoughts for selected characters",
+      "status": "done",
+      "priority": "medium",
+      "dependencies": [
+        9
+      ],
+      "details": "Display most recent internal thoughts from Claude for the currently selected character",
+      "testStrategy": "Verify thoughts display updates when character selection changes"
+    },
+    {
+      "id": 15,
+      "title": "Zone Editing System",
+      "description": "Implement zone drawing and editing tools for edit mode",
+      "status": "done",
+      "priority": "medium",
+      "dependencies": [
+        6
+      ],
+      "details": "Create grid overlay, drawing tools (brush, polygon, rectangle), zone properties editor (name, type, owner), and zones.json management",
+      "testStrategy": "Test zone creation, editing, and persistence to localStorage"
+    },
+    {
+      "id": 16,
+      "title": "Claude Haiku Integration",
+      "description": "Implement Claude Haiku API integration for character AI simulation",
+      "status": "done",
+      "priority": "high",
+      "dependencies": [
+        8
+      ],
+      "details": "Create Claude API client with system prompt, character context building, and JSON response parsing for simulation ticks",
+      "testStrategy": "Test API integration with sample character and verify JSON response parsing"
+    },
+    {
+      "id": 17,
+      "title": "Simulation Loop Engine",
+      "description": "Build the core simulation loop that drives character AI decisions",
+      "status": "done",
+      "priority": "high",
+      "dependencies": [
+        16,
+        7
+      ],
+      "details": "Implement timer-based loop that evaluates each character via Claude, processes responses, updates positions/conversations, and triggers events",
+      "testStrategy": "Test simulation loop with multiple characters and verify smooth operation at different speeds"
+    },
+    {
+      "id": 18,
+      "title": "Character Interaction System",
+      "description": "Enable character selection, conversation viewing, and interaction with the simulation",
+      "status": "done",
+      "priority": "medium",
+      "dependencies": [
+        7,
+        17
+      ],
+      "details": "Implement clickable characters on canvas, character detail display, conversation bubbles, and integration with all tab panels",
+      "testStrategy": "Test character clicking, detail display, and interaction with all UI components"
+    }
+  ]
+}

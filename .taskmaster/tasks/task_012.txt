@@ -1,0 +1,11 @@
+# Task ID: 12
+# Title: Inject Prompt Tab
+# Status: done
+# Dependencies: 9
+# Priority: medium
+# Description: Build scenario injection interface for adding events to the simulation
+# Details:
+Create prompt input field, target selector (global or specific characters), and integration with simulation loop for next Claude call
+
+# Test Strategy:
+Test prompt injection and verify it affects the next simulation tick

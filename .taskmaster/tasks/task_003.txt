@@ -1,0 +1,11 @@
+# Task ID: 3
+# Title: Sample Data Creation
+# Status: done
+# Dependencies: 2
+# Priority: medium
+# Description: Create initial sample characters, map, and zone data files
+# Details:
+Create sample character profiles (Rose, Sage, Griff, John), map.png, zones.json, and initial simulation data files
+
+# Test Strategy:
+Verify all sample data files load correctly and conform to defined interfaces

@@ -1,0 +1,11 @@
+# Task ID: 13
+# Title: Conversations Tab
+# Status: done
+# Dependencies: 9
+# Priority: medium
+# Description: Display active and recent character dialogues with filtering
+# Details:
+Show conversations between characters with expandable log view per pair, participant filtering, and real-time updates
+
+# Test Strategy:
+Test conversation display and filtering functionality

@@ -1,0 +1,67 @@
+{
+  "id": "john",
+  "name": "John",
+  "age": 52,
+  "location": "Town Hall",
+  "occupation": "Mayor",
+  "description": "A dedicated mayor who has served the town for twenty years. John works tirelessly to keep the community running smoothly while sometimes struggling to connect with the younger generation.",
+  "personality": "Responsible, traditional, hardworking, pragmatic",
+  "MBTI": "ESTJ",
+  "bigFive": {
+    "openness": 40,
+    "conscientiousness": 90,
+    "extraversion": 75,
+    "agreeableness": 60,
+    "neuroticism": 30
+  },
+  "sexuality": "heterosexual",
+  "desires": [
+    "Keep the town running smoothly",
+    "Earn respect from the younger generation",
+    "Leave a lasting legacy"
+  ],
+  "mentalHealth": [
+    "Stubbornness",
+    "Fear of irrelevance"
+  ],
+  "memories": [
+    {
+      "id": "john_memory_1",
+      "timestamp": 1671926400000,
+      "content": "Been mayor for twenty years today. Town council gave me a plaque. Sometimes I wonder if they're just being polite, but Mrs. Chen said the streetlights I installed saved her from a fall last winter.",
+      "emotional_weight": 70,
+      "tags": ["mayor", "anniversary", "legacy", "Mrs. Chen", "streetlights"]
+    },
+    {
+      "id": "john_memory_2",
+      "timestamp": 1675900800000,
+      "content": "Young Sage brought me fresh bread. Didn't ask for anything, just said 'thank you for the town.' Maybe the kids understand more than I give them credit for.",
+      "emotional_weight": 65,
+      "tags": ["Sage", "bread", "gratitude", "youth", "understanding"]
+    }
+  ],
+  "relationships": [
+    {
+      "name": "Rose",
+      "type": "acquaintance",
+      "notes": "Local florist who beautifies the town center. Professional respect."
+    },
+    {
+      "name": "Sage",
+      "type": "acquaintance",
+      "notes": "Young baker who shows gratitude for town services. Promising young citizen."
+    },
+    {
+      "name": "Griff",
+      "type": "acquaintance",
+      "notes": "Local craftsman. Checks in occasionally, professional relationship."
+    }
+  ],
+  "position": {
+    "x": 32,
+    "y": 15,
+    "zone": "town_hall"
+  },
+  "currentEmotion": "determined",
+  "sprite": "/characters/John/sprite.png"
+} 

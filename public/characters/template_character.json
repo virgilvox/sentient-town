@@ -1,0 +1,64 @@
+{
+  "_instructions": "Copy this template to create new characters. Rename this file to profile.json in your character's folder.",
+  "_note": "Remove the _instructions and _note fields when creating actual character profiles.",
+  
+  "id": "unique_character_id",
+  "name": "Character Name",
+  "age": 25,
+  "location": "Where they live/work",
+  "occupation": "Their job or role",
+  "description": "A brief description of the character's background and personality.",
+  "personality": "Key personality traits, comma-separated",
+  
+  "MBTI": "ENFP",
+  "bigFive": {
+    "openness": 50,
+    "conscientiousness": 50,
+    "extraversion": 50,
+    "agreeableness": 50,
+    "neuroticism": 50
+  },
+  "sexuality": "heterosexual",
+  
+  "desires": [
+    "What they want to achieve",
+    "Their goals and dreams",
+    "Personal aspirations"
+  ],
+  
+  "mentalHealth": [
+    "Any mental health conditions",
+    "Personality quirks",
+    "Behavioral patterns"
+  ],
+  
+  "memories": [
+    {
+      "id": "character_memory_1",
+      "timestamp": 1672531200000,
+      "content": "A significant memory that shaped them.",
+      "emotional_weight": 75,
+      "tags": ["important", "life-changing", "emotional"]
+    }
+  ],
+  
+  "relationships": [
+    {
+      "name": "Other Character Name",
+      "type": "friend",
+      "notes": "How they know each other and their relationship dynamic."
+    }
+  ],
+  
+  "position": {
+    "x": 25,
+    "y": 18,
+    "zone": "zone_id_where_they_start"
+  },
+  
+  "currentEmotion": "neutral",
+  "sprite": "/characters/YourCharacterFolder/sprite.png",
+  "isDead": false,
+  "causeOfDeath": null,
+  "deathTimestamp": null
+} 

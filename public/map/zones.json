@@ -1,0 +1,84 @@
+{
+  "zones": [
+    {
+      "id": "florist",
+      "name": "Rose's Florist",
+      "type": "shop",
+      "owner": "rose",
+      "tiles": [
+        {"x": 6, "y": 6}, {"x": 7, "y": 6}, {"x": 8, "y": 6},
+        {"x": 6, "y": 7}, {"x": 7, "y": 7}, {"x": 8, "y": 7},
+        {"x": 6, "y": 8}, {"x": 7, "y": 8}, {"x": 8, "y": 8}
+      ],
+      "description": "A charming flower shop filled with vibrant blooms."
+    },
+    {
+      "id": "bakery",
+      "name": "Moonrise Bakery",
+      "type": "shop",
+      "owner": "sage",
+      "tiles": [
+        {"x": 6, "y": 28}, {"x": 7, "y": 28}, {"x": 8, "y": 28},
+        {"x": 6, "y": 29}, {"x": 7, "y": 29}, {"x": 8, "y": 29},
+        {"x": 6, "y": 30}, {"x": 7, "y": 30}, {"x": 8, "y": 30}
+      ],
+      "description": "A cozy bakery with a gentle glow from its windows."
+    },
+    {
+      "id": "workshop",
+      "name": "Griff's Workshop",
+      "type": "home",
+      "owner": "griff",
+      "tiles": [
+        {"x": 42, "y": 6}, {"x": 43, "y": 6}, {"x": 44, "y": 6},
+        {"x": 42, "y": 7}, {"x": 43, "y": 7}, {"x": 44, "y": 7},
+        {"x": 42, "y": 8}, {"x": 43, "y": 8}, {"x": 44, "y": 8}
+      ],
+      "description": "A rustic woodworking shop with piles of lumber outside."
+    },
+    {
+      "id": "town_hall",
+      "name": "Town Hall",
+      "type": "public",
+      "owner": "john",
+      "tiles": [
+        {"x": 24, "y": 16}, {"x": 25, "y": 16}, {"x": 26, "y": 16},
+        {"x": 24, "y": 17}, {"x": 25, "y": 17}, {"x": 26, "y": 17},
+        {"x": 24, "y": 18}, {"x": 25, "y": 18}, {"x": 26, "y": 18}
+      ],
+      "description": "The centerpiece of the town."
+    },
+    {
+      "id": "orchard",
+      "name": "Old Orchard",
+      "type": "park",
+      "tiles": [
+        {"x": 42, "y": 28}, {"x": 43, "y": 28}, {"x": 44, "y": 28},
+        {"x": 42, "y": 29}, {"x": 43, "y": 29}, {"x": 44, "y": 29},
+        {"x": 42, "y": 30}, {"x": 43, "y": 30}, {"x": 44, "y": 30}
+      ],
+      "description": "An ancient orchard with winding paths and fruit trees."
+    },
+    {
+      "id": "main_street",
+      "name": "Main Street",
+      "type": "street",
+      "tiles": [
+        {"x": 0, "y": 18}, {"x": 1, "y": 18}, {"x": 2, "y": 18}, {"x": 3, "y": 18},
+        {"x": 4, "y": 18}, {"x": 5, "y": 18}, {"x": 6, "y": 18}, {"x": 7, "y": 18},
+        {"x": 8, "y": 18}, {"x": 9, "y": 18}, {"x": 10, "y": 18}, {"x": 11, "y": 18},
+        {"x": 12, "y": 18}, {"x": 13, "y": 18}, {"x": 14, "y": 18}, {"x": 15, "y": 18},
+        {"x": 16, "y": 18}, {"x": 17, "y": 18}, {"x": 18, "y": 18}, {"x": 19, "y": 18},
+        {"x": 20, "y": 18}, {"x": 21, "y": 18}, {"x": 22, "y": 18}, {"x": 23, "y": 18},
+        {"x": 24, "y": 18}, {"x": 25, "y": 18}, {"x": 26, "y": 18}, {"x": 27, "y": 18},
+        {"x": 28, "y": 18}, {"x": 29, "y": 18}, {"x": 30, "y": 18}, {"x": 31, "y": 18},
+        {"x": 32, "y": 18}, {"x": 33, "y": 18}, {"x": 34, "y": 18}, {"x": 35, "y": 18},
+        {"x": 36, "y": 18}, {"x": 37, "y": 18}, {"x": 38, "y": 18}, {"x": 39, "y": 18},
+        {"x": 40, "y": 18}, {"x": 41, "y": 18}, {"x": 42, "y": 18}, {"x": 43, "y": 18},
+        {"x": 44, "y": 18}, {"x": 45, "y": 18}, {"x": 46, "y": 18}, {"x": 47, "y": 18},
+        {"x": 48, "y": 18}, {"x": 49, "y": 18}
+      ],
+      "description": "The main thoroughfare connecting the heart of town."
+    }
+  ]
+} 

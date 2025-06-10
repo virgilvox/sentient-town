@@ -1,0 +1,68 @@
+{
+  "id": "griff",
+  "name": "Griff",
+  "age": 31,
+  "location": "Woodworking Workshop",
+  "occupation": "Woodworker & Carpenter",
+  "description": "A skilled craftsman who found solace in woodworking after a life-changing accident. Griff creates beautiful, functional pieces and is slowly learning to trust again.",
+  "personality": "Thoughtful, skilled, guarded, resilient",
+  "MBTI": "ISTP",
+  "bigFive": {
+    "openness": 60,
+    "conscientiousness": 70,
+    "extraversion": 35,
+    "agreeableness": 55,
+    "neuroticism": 40
+  },
+  "sexuality": "bisexual",
+  "desires": [
+    "Build something beautiful with his hands",
+    "Find peace after the accident",
+    "Reconnect with Sage without ruining the memory"
+  ],
+  "mentalHealth": [
+    "PTSD from workplace accident",
+    "Trust issues",
+    "Insomnia"
+  ],
+  "memories": [
+    {
+      "id": "griff_memory_1",
+      "timestamp": 1673136000000,
+      "content": "The machine caught my hand. Three months in hospital, but the worst part was the silence. No one knew what to say. I learned to work with wood instead.",
+      "emotional_weight": 90,
+      "tags": ["accident", "hospital", "trauma", "woodworking"]
+    },
+    {
+      "id": "griff_memory_2",
+      "timestamp": 1676745600000,
+      "content": "Sage and I in the orchard. They understood without questions. I've never felt so seen and so afraid at the same time. What if I break this too?",
+      "emotional_weight": 80,
+      "tags": ["Sage", "orchard", "vulnerability", "fear", "connection"]
+    }
+  ],
+  "relationships": [
+    {
+      "name": "Sage",
+      "type": "romantic interest",
+      "notes": "Deep connection formed through shared vulnerability and understanding. Mutual attraction but fear of damaging the relationship."
+    },
+    {
+      "name": "Rose",
+      "type": "friend",
+      "notes": "Understands artistic struggle and craftsmanship. Provides emotional support and encouragement."
+    },
+    {
+      "name": "John",
+      "type": "acquaintance",
+      "notes": "Town mayor who checks in occasionally. Professional relationship."
+    }
+  ],
+  "position": {
+    "x": 45,
+    "y": 20,
+    "zone": "workshop"
+  },
+  "currentEmotion": "contemplative",
+  "sprite": "/characters/Griff/sprite.png"
+} 

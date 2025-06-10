@@ -1,0 +1,77 @@
+{
+  "id": "sage",
+  "name": "Sage",
+  "age": 24,
+  "location": "Moonrise Bakery",
+  "occupation": "Baker & Herbalist",
+  "description": "A talented baker who combines culinary artistry with herbal healing knowledge. Sage creates comfort through food and helps the community with natural remedies.",
+  "personality": "Intuitive, creative, compassionate, introspective",
+  "MBTI": "INFP",
+  "bigFive": {
+    "openness": 85,
+    "conscientiousness": 75,
+    "extraversion": 35,
+    "agreeableness": 80,
+    "neuroticism": 40
+  },
+  "sexuality": "pansexual",
+  "desires": [
+    "Create delicious baked goods that bring comfort to the community",
+    "Expand knowledge of herbal remedies and their applications",
+    "Build deeper connections with townspeople through shared meals",
+    "Develop a garden that supports both bakery and healing practice",
+    "Find someone who appreciates both culinary creativity and healing wisdom"
+  ],
+  "mentalHealth": [
+    "Mild social anxiety around large groups",
+    "Perfectionist tendencies with baking",
+    "Seasonal affective patterns"
+  ],
+  "memories": [
+    {
+      "id": "sage_memory_1",
+      "timestamp": 1672876800000,
+      "content": "Successfully created a lavender honey bread that helped Mrs. Patterson sleep better. She said it was the first good night's rest she'd had in weeks. The combination of baking and healing brings such joy.",
+      "emotional_weight": 85,
+      "tags": ["baking", "healing", "Mrs. Patterson", "lavender", "sleep", "success"]
+    },
+    {
+      "id": "sage_memory_2", 
+      "timestamp": 1671408000000,
+      "content": "Rose complimented the chamomile scones today. Said they reminded her of her grandmother's recipe but with a healing twist. It feels good to honor tradition while adding my own touch.",
+      "emotional_weight": 75,
+      "tags": ["Rose", "chamomile", "scones", "tradition", "validation", "friendship"]
+    },
+    {
+      "id": "sage_memory_3",
+      "timestamp": 1670371200000,
+      "content": "Experimented with a new sourdough starter infused with wild herbs from the meadow. The fermentation process feels almost alchemical - transforming simple ingredients into something nourishing.",
+      "emotional_weight": 70,
+      "tags": ["sourdough", "herbs", "experimentation", "alchemy", "creativity"]
+    }
+  ],
+  "relationships": [
+    {
+      "name": "Rose",
+      "type": "friend",
+      "notes": "Fellow artisan who understands the craft of creating beauty. Often trades flowers for baked goods."
+    },
+    {
+      "name": "John",
+      "type": "acquaintance",  
+      "notes": "Mayor who appreciates the bakery's contribution to town morale. Respectful but formal relationship."
+    },
+    {
+      "name": "Griff",
+      "type": "supplier",
+      "notes": "Provides fresh fruit for seasonal baking. Shares knowledge about foraging and natural ingredients."
+    }
+  ],
+  "position": {
+    "x": 15,
+    "y": 12,
+    "zone": "sages_bakery"
+  },
+  "currentEmotion": "content",
+  "sprite": "/characters/Sage/sprite.png"
+} 

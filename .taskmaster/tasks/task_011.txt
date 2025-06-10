@@ -1,0 +1,11 @@
+# Task ID: 11
+# Title: Events Log Tab
+# Status: done
+# Dependencies: 9
+# Priority: medium
+# Description: Create real-time scrollable feed for simulation events
+# Details:
+Implement events log with timestamp, involved characters, event summary, and tone display with real-time updates
+
+# Test Strategy:
+Verify events display correctly and scroll performance is smooth

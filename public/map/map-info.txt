@@ -1,0 +1,26 @@
+MAP PLACEHOLDER INFORMATION
+============================
+
+This directory should contain a map.png file that serves as the background for the town simulation.
+
+Recommended specifications:
+- Dimensions: 800x600 pixels (or larger, maintaining 4:3 aspect ratio)
+- Style: Pixel art or simple 2D top-down view
+- Color palette: Earthy, whimsical tones matching the literary tone of the simulation
+
+The map should include visual representations of the zones defined in zones.json:
+- Rose's Florist (around coordinates 10,12)
+- Moonrise Bakery (around coordinates 25,30) 
+- Griff's Workshop (around coordinates 45,20)
+- Town Hall (around coordinates 32,15)
+- Old Orchard (around coordinates 52,36)
+- Main Street (connecting the key areas)
+
+Additional elements to consider:
+- Paths and roads connecting different areas
+- Trees, gardens, and natural elements
+- Small details that add character to the town
+- A grid-friendly layout that works well with the coordinate system
+
+For development purposes, a simple colored background with basic shapes 
+representing different zones will suffice until a proper pixel art map is created. 

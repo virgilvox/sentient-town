@@ -1,0 +1,11 @@
+# Task ID: 15
+# Title: Zone Editing System
+# Status: done
+# Dependencies: 6
+# Priority: medium
+# Description: Implement zone drawing and editing tools for edit mode
+# Details:
+Create grid overlay, drawing tools (brush, polygon, rectangle), zone properties editor (name, type, owner), and zones.json management
+
+# Test Strategy:
+Test zone creation, editing, and persistence to localStorage

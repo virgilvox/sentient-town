@@ -1,0 +1,11 @@
+# Task ID: 8
+# Title: Top Navigation Bar
+# Status: done
+# Dependencies: 4
+# Priority: medium
+# Description: Create the top bar with API key input, edit mode toggle, time speed control, and save button
+# Details:
+Implement top navigation with Claude Haiku API key field, edit town toggle, time speed dropdown (1x, 2x, 4x), and save all button
+
+# Test Strategy:
+Verify all controls function correctly and state changes are reflected

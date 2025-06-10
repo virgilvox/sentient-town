@@ -1,0 +1,67 @@
+{
+  "id": "rose",
+  "name": "Rose",
+  "age": 28,
+  "location": "Flower Shop District",
+  "occupation": "Florist & Flower Shop Owner",
+  "description": "A warm and nurturing florist who creates beautiful arrangements that speak to the heart. Rose has a gift for understanding what flowers can express when words fall short.",
+  "personality": "Caring, artistic, detail-oriented, empathetic",
+  "MBTI": "ESFJ",
+  "bigFive": {
+    "openness": 75,
+    "conscientiousness": 85,
+    "extraversion": 70,
+    "agreeableness": 90,
+    "neuroticism": 35
+  },
+  "sexuality": "heterosexual",
+  "desires": [
+    "Create the most beautiful flower arrangements in town",
+    "Help people express their feelings through flowers",
+    "Reconnect with old friends from her traveling days"
+  ],
+  "mentalHealth": [
+    "Anxiety about being forgotten",
+    "Perfectionism with her work"
+  ],
+  "memories": [
+    {
+      "id": "rose_memory_1",
+      "timestamp": 1672531200000,
+      "content": "The day I opened my flower shop. My hands were shaking as I arranged the first display, but Mrs. Chen bought a bouquet and said it reminded her of her grandmother's garden.",
+      "emotional_weight": 85,
+      "tags": ["shop", "opening", "pride", "Mrs. Chen"]
+    },
+    {
+      "id": "rose_memory_2",
+      "timestamp": 1675123200000,
+      "content": "Sage came by late at night, looking lost. We talked about sourdough and loneliness until dawn. There's something kindred in their spirit.",
+      "emotional_weight": 70,
+      "tags": ["Sage", "connection", "loneliness", "late night"]
+    }
+  ],
+  "relationships": [
+    {
+      "name": "Sage",
+      "type": "close friend",
+      "notes": "Fellow artisan with shared appreciation for craftsmanship. Deep conversations about creativity and purpose."
+    },
+    {
+      "name": "Griff",
+      "type": "friend",
+      "notes": "Woodworker who helped build shop displays. Mutual respect for each other's artistic skills."
+    },
+    {
+      "name": "John",
+      "type": "acquaintance",
+      "notes": "Town mayor who appreciates the aesthetic improvements to the town center."
+    }
+  ],
+  "position": {
+    "x": 10,
+    "y": 12,
+    "zone": "florist"
+  },
+  "currentEmotion": "content",
+  "sprite": "/characters/Rose/sprite.png"
+} 

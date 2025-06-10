@@ -1,0 +1,27 @@
+MUSIC CREDITS
+=============
+
+All music in this directory is licensed under CC0 (Public Domain) and is free to use.
+
+town-theme-rpg.mp3
+- Title: "Town Theme RPG"
+- Artist: cynicmusic
+- Source: https://opengameart.org/content/town-theme-rpg
+- License: CC0 (Public Domain)
+- Attribution: cynicmusic.com pixelsphere.org
+
+calm-ambient.mp3
+- Title: "Calm Ambient 1 (Synthwave 4k)"
+- Artist: cynicmusic (The Cynic Project)
+- Source: https://opengameart.org/content/calm-ambient-1-synthwave-4k
+- License: CC0 (Public Domain)
+- Attribution: The Cynic Project / cynicmusic.com / pixelsphere.org
+
+ambience.mp3
+- Title: "Ambience"
+- Artist: Pro Sensory (Alex McCulloch)
+- Source: https://opengameart.org/content/ambience-1
+- License: CC0 (Public Domain)
+- Attribution: Alex McCulloch
+
+Special thanks to OpenGameArt.org for hosting these wonderful public domain music tracks! 
