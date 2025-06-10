@@ -4,7 +4,7 @@
 const CLAUDE_API_URL = '/api/claude/v1/messages'
 
 // Comprehensive system prompt - restored to full detail as requested
-const SYSTEM_PROMPT = `You are simulating the internal life of a character in a pixelated AI town called "Sentient Town".
+const SYSTEM_PROMPT = `You are simulating the internal life of a character in a pixelated AI town called "MeadowLoop".
 
 Your job is to embody a unique character in this world with personality, memory, trauma, desire, political and emotional beliefs, and deep relationships.
 

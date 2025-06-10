@@ -29,7 +29,7 @@ export class SimulationEngine {
       return
     }
     
-    console.log('🚀 Starting Sentient Town simulation...')
+    console.log('🚀 Starting MeadowLoop simulation...')
     
     // Validate that all required stores are available
     if (!this.charactersStore || !this.simulationStore || !this.zonesStore || !this.uiStore) {

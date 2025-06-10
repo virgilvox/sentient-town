@@ -376,11 +376,11 @@ export const useSimulationStore = defineStore('simulation', () => {
       environment: environment.value,
       state: state.value
     }
-    localStorage.setItem('sentient-town-simulation', JSON.stringify(data))
+    localStorage.setItem('meadowloop-simulation', JSON.stringify(data))
   }
 
   function loadFromLocalStorage() {
-    const saved = localStorage.getItem('sentient-town-simulation')
+    const saved = localStorage.getItem('meadowloop-simulation')
     if (saved) {
       try {
         const data = JSON.parse(saved)

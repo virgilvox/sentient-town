@@ -53,7 +53,7 @@ export const useZonesStore = defineStore('zones', () => {
       originalZones.value = data.zones
       
       // Load any modifications from localStorage
-      const savedChanges = localStorage.getItem('sentient-town-zones')
+      const savedChanges = localStorage.getItem('meadowloop-zones')
       if (savedChanges) {
         const changes = JSON.parse(savedChanges)
         zones.value = mergeZoneChanges(data.zones, changes)
@@ -150,12 +150,12 @@ export const useZonesStore = defineStore('zones', () => {
       ).map(zone => zone.id)
     }
     
-    localStorage.setItem('sentient-town-zones', JSON.stringify(changes))
+    localStorage.setItem('meadowloop-zones', JSON.stringify(changes))
   }
 
   function resetZones() {
     zones.value = [...originalZones.value]
-    localStorage.removeItem('sentient-town-zones')
+    localStorage.removeItem('meadowloop-zones')
   }
 
   // Zone editor specific methods

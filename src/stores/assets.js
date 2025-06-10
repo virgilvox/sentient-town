@@ -9,7 +9,7 @@ export const useAssetStore = defineStore('assets', () => {
 
   // Actions
   function loadAssets() {
-    const savedAssets = localStorage.getItem('sentient-town-assets')
+    const savedAssets = localStorage.getItem('meadowloop-assets')
     if (savedAssets) {
       try {
         const parsed = JSON.parse(savedAssets)
@@ -29,7 +29,7 @@ export const useAssetStore = defineStore('assets', () => {
       customZones: customZones.value,
       customCharacterSprites: customCharacterSprites.value
     }
-    localStorage.setItem('sentient-town-assets', JSON.stringify(assets))
+    localStorage.setItem('meadowloop-assets', JSON.stringify(assets))
     console.log('💾 Saved custom assets to localStorage')
   }
 
@@ -48,7 +48,7 @@ export const useAssetStore = defineStore('assets', () => {
     customMap.value = null
     customZones.value = []
     customCharacterSprites.value = {}
-    localStorage.removeItem('sentient-town-assets')
+    localStorage.removeItem('meadowloop-assets')
     console.log('🗑️ Cleared all custom assets')
   }
 

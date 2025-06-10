@@ -234,23 +234,23 @@
         <div class="storage-info">
           <div class="storage-item">
             <span class="storage-label">Characters:</span>
-            <span class="storage-value">{{ formatStorageSize(getStorageSize('sentient-town-characters')) }}</span>
+            <span class="storage-value">{{ formatStorageSize(getStorageSize('meadowloop-characters')) }}</span>
           </div>
           <div class="storage-item">
             <span class="storage-label">Simulation:</span>
-            <span class="storage-value">{{ formatStorageSize(getStorageSize('sentient-town-simulation')) }}</span>
+            <span class="storage-value">{{ formatStorageSize(getStorageSize('meadowloop-simulation')) }}</span>
           </div>
           <div class="storage-item">
             <span class="storage-label">Assets:</span>
-            <span class="storage-value">{{ formatStorageSize(getStorageSize('sentient-town-assets')) }}</span>
+            <span class="storage-value">{{ formatStorageSize(getStorageSize('meadowloop-assets')) }}</span>
           </div>
           <div class="storage-item">
             <span class="storage-label">UI:</span>
-            <span class="storage-value">{{ formatStorageSize(getStorageSize('sentient-town-ui')) }}</span>
+            <span class="storage-value">{{ formatStorageSize(getStorageSize('meadowloop-ui')) }}</span>
           </div>
           <div class="storage-item">
             <span class="storage-label">Zones:</span>
-            <span class="storage-value">{{ formatStorageSize(getStorageSize('sentient-town-zones')) }}</span>
+            <span class="storage-value">{{ formatStorageSize(getStorageSize('meadowloop-zones')) }}</span>
           </div>
           <div class="storage-item total">
             <span class="storage-label">Total Used:</span>
@@ -336,7 +336,7 @@ const zoneDataCount = computed(() => {
 
 // Storage size calculations
 const totalStorageUsed = computed(() => {
-  return ['sentient-town-characters', 'sentient-town-simulation', 'sentient-town-assets', 'sentient-town-ui', 'sentient-town-zones']
+  return ['meadowloop-characters', 'meadowloop-simulation', 'meadowloop-assets', 'meadowloop-ui', 'meadowloop-zones']
     .reduce((total, key) => total + getStorageSize(key), 0)
 })
 
@@ -372,7 +372,7 @@ async function resetEverything() {
 
       // Clear all localStorage
       Object.keys(localStorage).forEach(key => {
-        if (key.startsWith('sentient-town-')) {
+        if (key.startsWith('meadowloop-')) {
           localStorage.removeItem(key)
         }
       })
@@ -587,7 +587,7 @@ function exportAllData() {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `sentient-town-complete-export-${new Date().toISOString().split('T')[0]}.json`
+  a.download = `meadowloop-complete-export-${new Date().toISOString().split('T')[0]}.json`
   a.click()
   URL.revokeObjectURL(url)
 }
@@ -761,7 +761,7 @@ function saveSettings() {
     openaiKeyStatus: openaiKeyStatus.value
   }
   
-  localStorage.setItem('sentientTownSettings', JSON.stringify(settings))
+  localStorage.setItem('meadowloopSettings', JSON.stringify(settings))
   console.log('💾 Settings saved:', settings)
 }
 
@@ -770,7 +770,7 @@ onMounted(() => {
   checkApiKeyStatuses()
   
   try {
-    const saved = localStorage.getItem('sentientTownSettings')
+    const saved = localStorage.getItem('meadowloopSettings')
     if (saved) {
       const settings = JSON.parse(saved)
       performanceMode.value = settings.performanceMode || 'balanced'

@@ -109,7 +109,7 @@ export const useCharactersStore = defineStore('characters', () => {
       console.log('📦 Original characters stored:', Object.keys(originalData))
       
       // Load any modifications from localStorage
-      const savedChanges = localStorage.getItem('sentient-town-characters')
+      const savedChanges = localStorage.getItem('meadowloop-characters')
       if (savedChanges) {
         try {
           const parsedChanges = JSON.parse(savedChanges)
@@ -350,12 +350,12 @@ export const useCharactersStore = defineStore('characters', () => {
       }
     }
     
-    localStorage.setItem('sentient-town-characters', JSON.stringify(changes))
+    localStorage.setItem('meadowloop-characters', JSON.stringify(changes))
   }
 
   function resetCharacters() {
     characters.value = { ...originalCharacters.value }
-    localStorage.removeItem('sentient-town-characters')
+    localStorage.removeItem('meadowloop-characters')
   }
 
   // Helper functions

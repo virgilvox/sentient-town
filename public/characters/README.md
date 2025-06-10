@@ -1,6 +1,6 @@
 # Characters Directory
 
-This directory contains all the character definitions for Sentient Town. Characters are automatically loaded from their individual folders.
+This directory contains all the character definitions for MeadowLoop. Characters are automatically loaded from their individual folders.
 
 ## Adding New Characters
 

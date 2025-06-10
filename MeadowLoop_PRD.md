@@ -1,7 +1,7 @@
-# PRD: Sentient Town
+# PRD: MeadowLoop
 
 ## Overview
-**Sentient Town** is a single-page, browser-based AI simulation where each character in a pixel-art town is driven by a persistent, personality-rich AI. The app is powered by **Claude Haiku**, and every character has a complete internal life, history, psychology, and emotional context stored in individual JSON profiles.
+**MeadowLoop** is a single-page, browser-based AI simulation where each character in a pixel-art town is driven by a persistent, personality-rich AI. The app is powered by **Claude Haiku**, and every character has a complete internal life, history, psychology, and emotional context stored in individual JSON profiles.
 
 Users can observe, interact with, and shape the unfolding narrative through:
 - **Live conversation monitoring**
@@ -162,7 +162,7 @@ I'm scared I'll never connect with Griff again. Maybe he's changed. Maybe I have
 
 ## Claude Haiku Prompt (System Instruction)
 ```txt
-You are simulating the internal life of a character in a pixelated AI town called "Sentient Town".
+You are simulating the internal life of a character in a pixelated AI town called "MeadowLoop".
 
 Your job is to embody a unique character in this world with personality, memory, trauma, desire, political and emotional beliefs, and deep relationships.
 
@@ -195,4 +195,3 @@ Always respond in the following JSON format:
 Tone is literary, slightly whimsical, emotionally honest, and character-first. Avoid clichés. Lean into idiosyncrasy.
 
 If the character has no one nearby, they may monologue or move toward a meaningful location (e.g. their favorite tree, a bakery, a person they miss).
-```

@@ -319,12 +319,12 @@ export const useUIStore = defineStore('ui', () => {
       claudeApiKey: claudeApiKey.value,
       canvasState: canvasState.value
     }
-    localStorage.setItem('sentient-town-ui', JSON.stringify(data))
+    localStorage.setItem('meadowloop-ui', JSON.stringify(data))
   }
 
   function loadFromLocalStorage() {
     try {
-      const saved = localStorage.getItem('sentient-town-ui')
+      const saved = localStorage.getItem('meadowloop-ui')
       if (saved) {
         const data = JSON.parse(saved)
         if (data.activeTab) activeTab.value = data.activeTab
@@ -358,7 +358,7 @@ export const useUIStore = defineStore('ui', () => {
       lastWipeTime: 0
     }
     resetCanvas()
-    localStorage.removeItem('sentient-town-ui')
+    localStorage.removeItem('meadowloop-ui')
   }
 
   function initializeStore() {
