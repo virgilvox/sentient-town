@@ -111,6 +111,9 @@ const lastMousePos = ref({ x: 0, y: 0 })
 const hoveredCharacterId = ref(null)
 const showCharacterTooltip = ref(false)
 const tooltipPosition = ref({ x: 0, y: 0 })
+const selectedCharacterId = ref(null)
+const isDraggingCharacter = ref(false)
+const dragOffset = ref({ x: 0, y: 0 })
 
 // Character animation state
 const characterAnimations = ref(new Map())
@@ -831,6 +834,15 @@ function renderCharacters() {
       ctx.strokeRect(x - 2, y - 2, characterSize + 4, characterSize + 4)
     }
     
+    // Highlight selected character  
+    if (selectedCharacterId.value === character.id) {
+      ctx.strokeStyle = '#00FF00'
+      ctx.lineWidth = 4
+      ctx.setLineDash([5, 5])
+      ctx.strokeRect(x - 4, y - 4, characterSize + 8, characterSize + 8)
+      ctx.setLineDash([]) // Reset line dash
+    }
+    
     ctx.restore()
   })
 }
@@ -874,12 +886,44 @@ function updateCanvasCursor() {
 function handleMouseDown(event) {
   console.log('🖱️ Mouse down in edit mode:', ui.editMode, 'active tab:', ui.activeTab)
   
-  if (ui.activeTab === 'zone-editor' || ui.editMode) {
-    const rect = canvasRef.value?.getBoundingClientRect()
-    if (!rect) return
+  const rect = canvasRef.value?.getBoundingClientRect()
+  if (!rect) return
+  
+  const x = event.clientX - rect.left
+  const y = event.clientY - rect.top
+  
+  // Check if clicking on a character first (in any mode)
+  const clickedCharacter = getCharacterAtPosition(x, y)
+  
+  if (clickedCharacter && !ui.editMode && ui.activeTab !== 'zone-editor') {
+    // Character selection and dragging logic
+    selectedCharacterId.value = clickedCharacter.id
+    isDraggingCharacter.value = true
     
-    const x = event.clientX - rect.left
-    const y = event.clientY - rect.top
+    // Calculate drag offset (where in the character the click happened)
+    const worldX = (x - canvasState.value.panX) / canvasState.value.zoom
+    const worldY = (y - canvasState.value.panY) / canvasState.value.zoom
+    
+    const animation = characterAnimations.value.get(clickedCharacter.id)
+    const pos = animation?.currentPos || clickedCharacter.position
+    const tileSize = zones.mapData.tileSize
+    
+    dragOffset.value = {
+      x: worldX - (pos.x * tileSize),
+      y: worldY - (pos.y * tileSize)
+    }
+    
+    console.log(`🎯 Selected character: ${clickedCharacter.name} for dragging`)
+    
+    // Select character in UI and switch to character tab
+    ui.selectCharacter(clickedCharacter.id)
+    ui.setActiveTab('character-editor')
+    
+    render()
+    return
+  }
+  
+  if (ui.activeTab === 'zone-editor' || ui.editMode) {
     const tile = getTileFromScreen(x, y)
     
     isDrawing.value = true
@@ -896,6 +940,46 @@ function handleMouseDown(event) {
 }
 
 function handleMouseMove(event) {
+  const rect = canvasRef.value?.getBoundingClientRect()
+  if (!rect) return
+  
+  const x = event.clientX - rect.left
+  const y = event.clientY - rect.top
+  
+  if (isDraggingCharacter.value && selectedCharacterId.value) {
+    // Handle character dragging
+    const worldX = (x - canvasState.value.panX) / canvasState.value.zoom
+    const worldY = (y - canvasState.value.panY) / canvasState.value.zoom
+    
+    const tileSize = zones.mapData.tileSize
+    
+    // Calculate new tile position based on drag
+    const newTileX = Math.max(0, Math.min(49, Math.floor((worldX - dragOffset.value.x) / tileSize)))
+    const newTileY = Math.max(0, Math.min(36, Math.floor((worldY - dragOffset.value.y) / tileSize)))
+    
+    // Update character position immediately for smooth dragging
+    const character = characters.getCharacter(selectedCharacterId.value)
+    if (character) {
+      // Update the animation state directly for immediate visual feedback
+      const animation = characterAnimations.value.get(selectedCharacterId.value)
+      if (animation) {
+        animation.currentPos = { x: newTileX, y: newTileY }
+        animation.targetPos = { x: newTileX, y: newTileY }
+        animation.isMoving = false
+      }
+      
+      // Also update the character's actual position
+      characters.moveCharacter(selectedCharacterId.value, {
+        x: newTileX,
+        y: newTileY,
+        zone: character.position.zone
+      })
+    }
+    
+    render()
+    return
+  }
+  
   if (isDragging.value && !ui.editMode) {
     const deltaX = event.clientX - lastMousePos.value.x
     const deltaY = event.clientY - lastMousePos.value.y
@@ -948,6 +1032,16 @@ function updateCharacterHover(event) {
 }
 
 function handleMouseUp() {
+  if (isDraggingCharacter.value && selectedCharacterId.value) {
+    // Character dragging completed
+    const character = characters.getCharacter(selectedCharacterId.value)
+    if (character) {
+      console.log(`📍 Moved ${character.name} to position (${character.position.x}, ${character.position.y})`)
+    }
+    isDraggingCharacter.value = false
+    // Keep character selected but stop dragging
+  }
+  
   isDragging.value = false
   isDrawing.value = false
   updateCanvasCursor()
@@ -1068,16 +1162,42 @@ function handleClick(event) {
   
   if (clickedCharacter) {
     ui.selectCharacter(clickedCharacter.id)
+    selectedCharacterId.value = clickedCharacter.id
     // Switch to character editor tab when a character is clicked
     ui.setActiveTab('character-editor')
     console.log(`Selected character: ${clickedCharacter.name}`)
   } else {
-    // Normal click mode - place characters
-    characters.moveSelectedCharacterTo(tile.x, tile.y)
+    // Deselect character when clicking elsewhere
     ui.selectCharacter(undefined)
+    selectedCharacterId.value = null
+    console.log('Deselected character')
   }
   
   render()
+}
+
+// Helper function to find character at screen position
+function getCharacterAtPosition(screenX, screenY) {
+  const worldX = (screenX - canvasState.value.panX) / canvasState.value.zoom
+  const worldY = (screenY - canvasState.value.panY) / canvasState.value.zoom
+  
+  const tileSize = zones.mapData.tileSize
+  const characterSize = Math.max(tileSize * 3, 48)
+  
+  return characters.charactersList.find(char => {
+    const animation = characterAnimations.value.get(char.id)
+    const pos = animation?.currentPos || char.position
+    
+    // Calculate character's actual rendered position (centered on tile)
+    const tileX = pos.x * tileSize
+    const tileY = pos.y * tileSize
+    const charX = tileX - (characterSize - tileSize) / 2
+    const charY = tileY - (characterSize - tileSize) / 2
+    
+    // Check if click is within the character's larger sprite bounds
+    return worldX >= charX && worldX <= charX + characterSize &&
+           worldY >= charY && worldY <= charY + characterSize
+  })
 }
 
 // Control functions

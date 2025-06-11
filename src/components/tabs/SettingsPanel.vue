@@ -278,12 +278,119 @@
           />
         </div>
       </div>
+
+      <!-- Token Usage Section -->
+      <div class="section token-usage-section">
+        <h3>💰 Token Usage & Costs</h3>
+        
+        <div v-if="tokenUsage" class="token-stats">
+          <div class="cost-summary">
+            <div class="total-cost">
+              <span class="label">Session Total:</span>
+              <span class="value">${{ tokenUsage.estimatedCost.total.toFixed(4) }}</span>
+            </div>
+          </div>
+          
+          <div class="model-breakdown">
+            <div class="model-stats haiku">
+              <h4>🤖 Haiku 3 (Character Interactions)</h4>
+              <div class="stats-grid">
+                <div class="stat">
+                  <span class="label">Input Tokens:</span>
+                  <span class="value">{{ tokenUsage.haiku.input.toLocaleString() }}</span>
+                </div>
+                <div class="stat">
+                  <span class="label">Output Tokens:</span>
+                  <span class="value">{{ tokenUsage.haiku.output.toLocaleString() }}</span>
+                </div>
+                <div class="stat">
+                  <span class="label">API Calls:</span>
+                  <span class="value">{{ tokenUsage.haiku.calls }}</span>
+                </div>
+                <div class="stat">
+                  <span class="label">Cost:</span>
+                  <span class="value">${{ tokenUsage.estimatedCost.haiku.toFixed(4) }}</span>
+                </div>
+              </div>
+            </div>
+            
+            <div class="model-stats sonnet">
+              <h4>🧠 Sonnet 3.5 (Zone Generation)</h4>
+              <div class="stats-grid">
+                <div class="stat">
+                  <span class="label">Input Tokens:</span>
+                  <span class="value">{{ tokenUsage.sonnet.input.toLocaleString() }}</span>
+                </div>
+                <div class="stat">
+                  <span class="label">Output Tokens:</span>
+                  <span class="value">{{ tokenUsage.sonnet.output.toLocaleString() }}</span>
+                </div>
+                <div class="stat">
+                  <span class="label">API Calls:</span>
+                  <span class="value">{{ tokenUsage.sonnet.calls }}</span>
+                </div>
+                <div class="stat">
+                  <span class="label">Cost:</span>
+                  <span class="value">${{ tokenUsage.estimatedCost.sonnet.toFixed(4) }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="optimization-info">
+            <h4>🚀 Cost Optimization Features</h4>
+            <div class="optimization-list">
+              <div class="optimization-item">
+                <span class="optimization-icon">💾</span>
+                <span class="optimization-text">
+                  <strong>Prompt Caching:</strong> 90% cost savings on repeated character context (personality, memories, relationships)
+                </span>
+              </div>
+              <div class="optimization-item">
+                <span class="optimization-icon">🤖</span>
+                <span class="optimization-text">
+                  <strong>Dual Model System:</strong> Haiku 3 for character interactions ($0.25/$1.25 per million tokens), Sonnet 3.5 for complex analysis
+                </span>
+              </div>
+              <div class="optimization-item">
+                <span class="optimization-icon">🎯</span>
+                <span class="optimization-text">
+                  <strong>Smart Context Management:</strong> Dynamic token budgeting prioritizes important memories and current situation
+                </span>
+              </div>
+              <div class="optimization-item">
+                <span class="optimization-icon">⏱️</span>
+                <span class="optimization-text">
+                  <strong>Minimum 5s Tick Rate:</strong> Prevents excessive API calls while maintaining quality narrative flow
+                </span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="token-actions">
+            <button @click="refreshTokenUsage" class="btn-refresh">
+              🔄 Refresh
+            </button>
+            <button @click="resetTokenUsage" class="btn-reset">
+              🗑️ Reset Tracking
+            </button>
+          </div>
+        </div>
+        
+        <div v-else class="no-token-data">
+          <p>No token usage data available yet.</p>
+          <button @click="refreshTokenUsage" class="btn-refresh">
+            🔄 Load Usage Data
+          </button>
+        </div>
+      </div>
+
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useCharactersStore, useSimulationStore, useZonesStore, useUIStore, useAssetStore } from '@/stores'
 
 const characters = useCharactersStore()
@@ -606,12 +713,26 @@ function importAllData(event) {
       try {
         const data = JSON.parse(e.target.result)
         
-        // Import into stores
-        if (data.characters) characters.characters = data.characters
-        if (data.simulation) Object.assign(simulation.$state, data.simulation)
-        if (data.zones) zones.zones = data.zones
-        if (data.ui) Object.assign(ui.$state, data.ui)
-        if (data.assets) assets.importTownData(data)
+        // Import into stores with validation
+        if (data.characters && Array.isArray(data.characters)) {
+          characters.characters = data.characters
+        }
+        
+        if (data.simulation && typeof data.simulation === 'object') {
+          Object.assign(simulation.$state, data.simulation)
+        }
+        
+        if (data.zones && Array.isArray(data.zones)) {
+          zones.zones = data.zones
+        }
+        
+        if (data.ui && typeof data.ui === 'object') {
+          Object.assign(ui.$state, data.ui)
+        }
+        
+        if (data.assets && typeof data.assets === 'object') {
+          assets.importTownData(data)
+        }
 
         // Save all changes
         characters.saveCharacterChanges()
@@ -765,9 +886,49 @@ function saveSettings() {
   console.log('💾 Settings saved:', settings)
 }
 
+// Token usage tracking
+const tokenUsage = ref(null)
+
+async function refreshTokenUsage() {
+  try {
+    // Dynamically import simulation engine to avoid circular dependencies
+    const { simulationEngine } = await import('../../services/simulationEngine.js')
+    
+    const usage = simulationEngine.getTokenUsageStats()
+    
+    if (usage) {
+      tokenUsage.value = usage
+      console.log('📊 Token usage refreshed:', usage)
+    } else {
+      console.warn('⚠️ No token usage data available')
+      tokenUsage.value = null
+    }
+  } catch (error) {
+    console.error('❌ Error loading token usage:', error)
+    tokenUsage.value = null
+  }
+}
+
+async function resetTokenUsage() {
+  try {
+    // Dynamically import simulation engine
+    const { simulationEngine } = await import('../../services/simulationEngine.js')
+    
+    simulationEngine.resetTokenUsageTracking()
+    await refreshTokenUsage() // Refresh to show zeroed values
+    
+    console.log('🔄 Token usage tracking reset')
+  } catch (error) {
+    console.error('❌ Error resetting token usage:', error)
+  }
+}
+
 onMounted(() => {
   // Load settings and check statuses
   checkApiKeyStatuses()
+  
+  // Load token usage data when component mounts
+  refreshTokenUsage()
   
   try {
     const saved = localStorage.getItem('meadowloopSettings')
@@ -1196,5 +1357,179 @@ onMounted(() => {
   .import-export-actions {
     flex-direction: column;
   }
+}
+
+.token-usage-section {
+  margin-top: 30px;
+}
+
+.token-stats {
+  padding: 20px;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+  background: white;
+}
+
+.cost-summary {
+  margin-bottom: 20px;
+}
+
+.total-cost {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  border-radius: 6px;
+  background: #f8f9fa;
+}
+
+.label {
+  font-weight: 500;
+  color: #495057;
+  font-size: 14px;
+}
+
+.value {
+  color: #6c757d;
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-size: 12px;
+}
+
+.model-breakdown {
+  margin-bottom: 20px;
+}
+
+.model-stats {
+  margin-bottom: 10px;
+}
+
+.model-stats h4 {
+  margin: 0 0 10px 0;
+  color: #343a40;
+  font-size: 16px;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.token-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16px;
+}
+
+.btn-refresh,
+.btn-reset {
+  padding: 10px 18px;
+  border: 2px solid #e9ecef;
+  border-radius: 6px;
+  background: white;
+  color: #495057;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.btn-refresh:hover {
+  background: #17a2b8;
+  border-color: #17a2b8;
+  color: white;
+  transform: translateY(-1px);
+}
+
+.btn-reset:hover {
+  background: #dc3545;
+  border-color: #dc3545;
+  color: white;
+  transform: translateY(-1px);
+}
+
+.no-token-data {
+  text-align: center;
+  padding: 20px;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+  background: white;
+}
+
+.cost-info {
+  margin-bottom: 20px;
+}
+
+.cost-breakdown {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  border-radius: 6px;
+  background: #f8f9fa;
+}
+
+.cost-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.cost-item.haiku {
+  border-right: 1px solid #e9ecef;
+  padding-right: 10px;
+}
+
+.cost-item.sonnet {
+  padding-left: 10px;
+}
+
+.cost-item.total {
+  border-color: #667eea;
+  background: #f8f9ff;
+  font-weight: 600;
+}
+
+.cost-label {
+  font-weight: 500;
+  color: #495057;
+  font-size: 14px;
+}
+
+.cost-value {
+  color: #6c757d;
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-size: 12px;
+}
+
+.optimization-info {
+  margin-top: 20px;
+}
+
+.optimization-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.optimization-item {
+  display: flex;
+  align-items: center;
+}
+
+.optimization-icon {
+  margin-right: 10px;
+}
+
+.optimization-text {
+  color: #6c757d;
+  font-size: 14px;
 }
 </style> 

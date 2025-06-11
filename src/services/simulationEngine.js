@@ -88,8 +88,8 @@ export class SimulationEngine {
         // Don't stop the simulation for individual tick errors
       }
       
-      // Schedule next tick based on UI speed setting (1-60 seconds)
-      const speedInSeconds = this.uiStore?.timeSpeed || 5 // Default 5 seconds
+      // Schedule next tick based on UI speed setting (5-60 seconds minimum)
+      const speedInSeconds = Math.max(5, this.uiStore?.timeSpeed || 5) // Minimum 5 seconds
       const intervalMs = speedInSeconds * 1000
       
       console.log(`⏱️ Next tick in ${speedInSeconds} seconds`)
@@ -263,7 +263,7 @@ export class SimulationEngine {
       // Process the response
       await this.processClaudeResponse(character, response, context)
 
-      // Mark injection as processed if there was one - COMPREHENSIVE NULL CHECKS
+      // Mark injection as processed if there was one - ENHANCED FOR GLOBAL INJECTIONS
       if (context && 
           context.injectedScenario && 
           typeof context.injectedScenario === 'object' &&
@@ -271,11 +271,30 @@ export class SimulationEngine {
           this.simulationStore &&
           typeof this.simulationStore.markInjectionProcessed === 'function') {
         
-        console.log(`✅ [${character.name}] Marking injection ${context.injectedScenario.id} as processed`)
-        try {
-          this.simulationStore.markInjectionProcessed(context.injectedScenario.id)
-        } catch (injectionError) {
-          console.error(`❌ [${character.name}] Failed to mark injection as processed:`, injectionError)
+        // ENHANCED: Track per-character processing for global injections
+        const injection = context.injectedScenario
+        
+        if (injection.target === 'global') {
+          // For global injections, track which characters have processed it
+          if (!injection.processedBy) {
+            injection.processedBy = []
+          }
+          
+          if (!injection.processedBy.includes(character.id)) {
+            injection.processedBy.push(character.id)
+            console.log(`✅ [${character.name}] Added to global injection processing list (${injection.processedBy.length} characters processed)`)
+            
+            // Only mark as fully processed when ALL active characters have processed it
+            const activeCharacters = this.charactersStore?.charactersList?.filter(c => !c.isDead) || []
+            if (injection.processedBy.length >= activeCharacters.length) {
+              console.log(`🎬 Global injection fully processed by all ${activeCharacters.length} characters, marking as complete`)
+              this.simulationStore.markInjectionProcessed(injection.id)
+            }
+          }
+        } else {
+          // For targeted injections, mark as processed immediately
+          console.log(`✅ [${character.name}] Marking targeted injection ${injection.id} as processed`)
+          this.simulationStore.markInjectionProcessed(injection.id)
         }
       }
 
@@ -293,7 +312,7 @@ export class SimulationEngine {
     
     // TOKEN BUDGET CALCULATION
     // Reserve ~2k tokens for system prompt, ~2k for response, leaves ~36k for context
-    const MAX_CONTEXT_TOKENS = 36000
+    const MAX_CONTEXT_TOKENS = 4000 // Conservative limit for Haiku 3
     let estimatedTokens = 0
     
     // Token estimation function (rough: 4 chars = 1 token)
@@ -350,7 +369,7 @@ export class SimulationEngine {
       console.warn(`⚠️ [${character.name}] Error getting injection:`, error)
     }
     
-    // 5. MEMORIES: Include as many as token budget allows
+    // 5. MEMORIES: Include as many as token budget allows with ENHANCED TAG FILTERING
     if (character.memories && character.memories.length > 0) {
       // Use memory summarization if we have many memories
       if (character.memories.length > 15) {
@@ -368,18 +387,54 @@ export class SimulationEngine {
         }
       }
       
-      // Add individual recent/important memories if we have token budget
+      // ENHANCED: Add individual recent/important memories with tag-based prioritization
       if (!context.memorySummary || estimatedTokens < MAX_CONTEXT_TOKENS * 0.8) {
-        const importantMemories = character.memories
+        // Prioritize memories based on injection tags, recent events, and relevance
+        let relevantTags = ['conversation', 'action', 'death', 'resurrection', 'movement']
+        
+        // If there's an injection, prioritize memories with related tags
+        if (injection && injection.content) {
+          const injectionContent = injection.content.toLowerCase()
+          
+          // Extract relevant tags from injection content
+          if (injectionContent.includes('death') || injectionContent.includes('die')) {
+            relevantTags = ['death', 'tragic', 'loss', ...relevantTags]
+          }
+          if (injectionContent.includes('resurrect') || injectionContent.includes('return')) {
+            relevantTags = ['resurrection', 'miracle', 'joy', ...relevantTags]
+          }
+          if (injectionContent.includes('love') || injectionContent.includes('romance')) {
+            relevantTags = ['romance', 'relationship', 'love', ...relevantTags]
+          }
+          if (injectionContent.includes('fight') || injectionContent.includes('conflict')) {
+            relevantTags = ['conflict', 'argument', 'tension', ...relevantTags]
+          }
+          if (injectionContent.includes('celebrate') || injectionContent.includes('party')) {
+            relevantTags = ['celebration', 'joy', 'gathering', ...relevantTags]
+          }
+        }
+        
+        const prioritizedMemories = character.memories
           .sort((a, b) => {
-            const emotionalWeight = (b.emotional_weight || 0) - (a.emotional_weight || 0)
-            const recency = (b.timestamp || 0) - (a.timestamp || 0)
-            return emotionalWeight * 0.7 + recency * 0.3
+            let scoreA = (a.emotional_weight || 0) * 0.5 + this.getMemoryRecencyScore(a) * 0.3
+            let scoreB = (b.emotional_weight || 0) * 0.5 + this.getMemoryRecencyScore(b) * 0.3
+            
+            // BOOST score for memories with relevant tags
+            const tagsA = a.tags || []
+            const tagsB = b.tags || []
+            
+            const relevantTagsA = tagsA.filter(tag => relevantTags.includes(tag)).length
+            const relevantTagsB = tagsB.filter(tag => relevantTags.includes(tag)).length
+            
+            scoreA += relevantTagsA * 20 // Significant boost for relevant tags
+            scoreB += relevantTagsB * 20
+            
+            return scoreB - scoreA
           })
           .slice(0, context.memorySummary ? 5 : 12) // Fewer if we have summary
         
         let memoryText = ''
-        for (const memory of importantMemories) {
+        for (const memory of prioritizedMemories) {
           const memoryLine = `${memory.content}\n`
           const memoryTokens = estimateTokens(memoryLine)
           
@@ -393,6 +448,7 @@ export class SimulationEngine {
         
         if (memoryText) {
           context.recentMemories = memoryText.trim()
+          console.log(`🏷️ [${character.name}] Prioritized memories with tags: ${relevantTags.slice(0, 5).join(', ')}`)
         }
       }
     }
@@ -434,6 +490,19 @@ export class SimulationEngine {
           estimatedTokens += nearbyTokens
           
           console.log(`✅ [${character.name}] Added nearby characters to context: ${nearbyText}`)
+          
+          // ENHANCED: Add ongoing conversation awareness
+          const ongoingConversation = this.findOngoingConversationNearby(character, nearbyCharacters)
+          if (ongoingConversation) {
+            const conversationContext = this.buildOngoingConversationContext(ongoingConversation, character)
+            const conversationTokens = estimateTokens(conversationContext)
+            
+            if (estimatedTokens + conversationTokens < MAX_CONTEXT_TOKENS) {
+              context.ongoingConversation = conversationContext
+              estimatedTokens += conversationTokens
+              console.log(`💬 [${character.name}] Added ongoing conversation context`)
+            }
+          }
         } else {
           console.log(`⚠️ [${character.name}] Skipped nearby characters - would exceed token limit`)
         }
@@ -838,19 +907,23 @@ export class SimulationEngine {
       })
     }
     
+    // FIXED: Generate human-readable movement descriptions
+    const fromZoneName = this.getHumanReadableZoneName(fromZone, character.position.x, character.position.y)
+    const toZoneName = this.getHumanReadableZoneName(toZone, newX, newY)
+    
     this.simulationStore.addEvent({
       type: 'movement',
       involvedCharacters: [character.id],
-      summary: `${character.name} moved to ${targetZone?.name || 'a new location'}`,
+      summary: `${character.name} moved from ${fromZoneName} to ${toZoneName}`,
       tone: response.emotion,
       details: {
         from: fromZone,
         to: toZone,
-        reason: response.action_reasoning || `Decided to move to ${targetZone?.name || 'a different area'}`,
+        reason: response.action_reasoning || `Decided to move to ${toZoneName}`,
         // Enhanced details for expansion
         character_name: character.name,
-        from_zone_name: this.zonesStore?.zones?.find(z => z.id === fromZone)?.name || 'unknown',
-        to_zone_name: targetZone?.name || 'unknown',
+        from_zone_name: fromZoneName,
+        to_zone_name: toZoneName,
         from_coordinates: `${character.position.x}, ${character.position.y}`,
         to_coordinates: `${newX}, ${newY}`,
         internal_thoughts: response.internal_thoughts,
@@ -858,6 +931,57 @@ export class SimulationEngine {
         emotion: response.emotion || 'neutral'
       }
     })
+  }
+
+  // ADDED: Helper function to convert zone IDs to human-readable names
+  getHumanReadableZoneName(zoneId, x, y) {
+    // Try to find actual zone by ID
+    if (this.zonesStore?.zones) {
+      const zone = this.zonesStore.zones.find(z => z.id === zoneId)
+      if (zone && zone.name) {
+        return zone.name
+      }
+    }
+    
+    // If zone ID is auto-generated (contains timestamps/numbers) or not found, create readable description
+    if (!zoneId || zoneId === 'Unknown' || zoneId.includes('_') || /\d{10,}/.test(zoneId)) {
+      // Create location description based on coordinates
+      return this.getLocationDescription(x, y)
+    }
+    
+    // If it's a short, meaningful ID, use it as-is
+    return zoneId
+  }
+
+  // ADDED: Helper function to generate readable location descriptions from coordinates
+  getLocationDescription(x, y) {
+    // Map coordinates to general areas (assuming 50x37 map)
+    const mapWidth = 50
+    const mapHeight = 37
+    
+    // Determine general compass direction
+    let location = ''
+    
+    // North/South
+    if (y < mapHeight * 0.25) {
+      location += 'northern '
+    } else if (y > mapHeight * 0.75) {
+      location += 'southern '
+    } else {
+      location += 'central '
+    }
+    
+    // East/West
+    if (x < mapWidth * 0.25) {
+      location += 'western area'
+    } else if (x > mapWidth * 0.75) {
+      location += 'eastern area'
+    } else {
+      location += 'area'
+    }
+    
+    // Add specific coordinate hint for precision
+    return `${location} (${x}, ${y})`
   }
 
   async processApproach(character, response, context) {
@@ -1027,6 +1151,20 @@ export class SimulationEngine {
   }
 
   shouldCharacterAct(character) {
+    // ENHANCED: Allow dead characters to act as ghosts (special behavior)
+    if (character.isDead) {
+      // Dead characters act less frequently but can still interact as ghosts
+      const ghostProbability = 0.15 // Lower probability for dead characters
+      const willGhostAct = Math.random() < ghostProbability
+      
+      if (willGhostAct) {
+        console.log(`👻 [${character.name}] Ghost is stirring... (acting from beyond)`)
+        return true
+      } else {
+        return false
+      }
+    }
+    
     // PRIORITY: Always process characters with pending injections
     let hasPendingInjection = false
     try {
@@ -1039,6 +1177,29 @@ export class SimulationEngine {
     if (hasPendingInjection) {
       console.log(`🚨 [${character.name}] Has pending injection - forcing processing`)
       return true
+    }
+
+    // ENHANCED: Higher priority for characters who could join ongoing conversations
+    const nearbyCharacters = this.findNearbyCharacters(character)
+    const ongoingConversation = this.findOngoingConversationNearby(character, nearbyCharacters)
+    
+    if (ongoingConversation) {
+      // Much higher probability for characters who could join conversations
+      const conversationEngagementProbability = 0.75 // Very likely to engage
+      
+      // Modify based on personality - extroverts more likely to join
+      let engagementMultiplier = 1.0
+      if (character.bigFive?.extraversion) {
+        engagementMultiplier = 0.5 + (character.bigFive.extraversion / 100) // 0.5 to 1.5 multiplier
+      }
+      
+      const finalConversationProbability = Math.min(0.85, conversationEngagementProbability * engagementMultiplier)
+      const willJoinConversation = Math.random() < finalConversationProbability
+      
+      if (willJoinConversation) {
+        console.log(`💬 [${character.name}] Likely to join ongoing conversation (${Math.round(finalConversationProbability * 100)}% chance)`)
+        return true
+      }
     }
 
     // Personality-based probability with more meaningful factors
@@ -1065,6 +1226,12 @@ export class SimulationEngine {
     const emotionMultiplier = emotionMultipliers[character.currentEmotion] || 1.0
     probability *= emotionMultiplier
     
+    // ENHANCED: Increase probability if nearby characters (even without ongoing conversation)
+    if (nearbyCharacters.length > 0) {
+      probability *= 1.4 // 40% boost for having company
+      console.log(`👥 [${character.name}] Nearby characters boost conversation probability`)
+    }
+    
     // Reduce activity if character just acted (prevents spam)
     const lastEventTime = character.lastActionTime || 0
     const timeSinceLastAction = Date.now() - lastEventTime
@@ -1082,6 +1249,19 @@ export class SimulationEngine {
     }
     
     return willAct
+  }
+
+  findNearbyCharacters(character) {
+    // Helper method to find nearby characters
+    const allCharacters = this.charactersStore?.charactersList || []
+    const currentCharacterZone = character.currentZone || character.position?.zone
+    
+    return allCharacters.filter(c => {
+      if (!c || c.id === character.id) return false
+      
+      const otherCharacterZone = c.currentZone || c.position?.zone
+      return otherCharacterZone === currentCharacterZone
+    }).slice(0, 3)
   }
 
   // Public getters
@@ -1140,8 +1320,11 @@ export class SimulationEngine {
   cleanupConversations() {
     if (!this.simulationStore?.activeConversations) return
     
+    console.log(`🧹 Starting conversation cleanup - ${this.simulationStore.activeConversations.length} active conversations`)
+    
     const conversationsToEnd = []
     
+    // PHASE 1: Check distance and participant validity
     this.simulationStore.activeConversations.forEach(conversation => {
       // Check if all participants are still nearby each other
       const participants = conversation.participants
@@ -1177,25 +1360,107 @@ export class SimulationEngine {
       if (shouldEndConversation) {
         conversationsToEnd.push(conversation.id)
       }
-      
-      // Also end conversations that have been inactive for too long (no messages in last 10 ticks)
-      const timeSinceLastMessage = Date.now() - (conversation.messages[conversation.messages.length - 1]?.timestamp || conversation.startTime)
-      const inactiveTimeLimit = 30000 // 30 seconds
-      
-      if (timeSinceLastMessage > inactiveTimeLimit) {
-        conversationsToEnd.push(conversation.id)
-        console.log(`💬 Ending conversation ${conversation.id} - inactive for ${Math.round(timeSinceLastMessage/1000)}s`)
-      }
     })
     
-    // End the conversations that need to be ended
+    // End conversations that failed distance/participant checks
     conversationsToEnd.forEach(conversationId => {
       this.simulationStore.endConversation(conversationId)
     })
     
     if (conversationsToEnd.length > 0) {
-      console.log(`💬 Ended ${conversationsToEnd.length} conversations due to distance/inactivity`)
+      console.log(`💬 Ended ${conversationsToEnd.length} conversations due to distance/validity issues`)
     }
+    
+    // PHASE 2: Use enhanced timeout cleanup from simulation store
+    // This handles sophisticated timeout logic (3 min for multi-message, 1 min for single message)
+    try {
+      this.simulationStore.cleanupOldConversations()
+    } catch (error) {
+      console.warn('⚠️ Error during enhanced conversation cleanup:', error)
+    }
+  }
+
+  // Token usage methods that delegate to claudeApi
+  getTokenUsageStats() {
+    return claudeApi.getSessionTokenUsage()
+  }
+
+  resetTokenUsageTracking() {
+    claudeApi.resetTokenUsage()
+    console.log('🔄 Token usage tracking reset via simulation engine')
+  }
+
+  findOngoingConversationNearby(character, nearbyCharacters) {
+    // Find active conversations that include nearby characters
+    if (!this.simulationStore?.activeConversations) return null
+    
+    const nearbyCharacterIds = nearbyCharacters.map(c => c.id)
+    
+    // Look for conversations where:
+    // 1. At least one nearby character is participating
+    // 2. The conversation has recent activity (last 2 minutes)
+    // 3. The character is not already in the conversation
+    const recentConversations = this.simulationStore.activeConversations.filter(conv => {
+      // Check if character is already in conversation
+      if (conv.participants.includes(character.id)) return false
+      
+      // Check if any nearby characters are in this conversation
+      const hasNearbyParticipants = conv.participants.some(id => nearbyCharacterIds.includes(id))
+      if (!hasNearbyParticipants) return false
+      
+      // Check if conversation has recent activity (last 2 minutes)
+      const lastMessageTime = conv.messages.length > 0 ? 
+        conv.messages[conv.messages.length - 1].timestamp : conv.startTime
+      const timeSinceLastMessage = Date.now() - lastMessageTime
+      const isRecent = timeSinceLastMessage < 120000 // 2 minutes
+      
+      return isRecent
+    })
+    
+    // Return the most recent conversation
+    if (recentConversations.length > 0) {
+      const mostRecent = recentConversations.sort((a, b) => {
+        const aLastTime = a.messages.length > 0 ? a.messages[a.messages.length - 1].timestamp : a.startTime
+        const bLastTime = b.messages.length > 0 ? b.messages[b.messages.length - 1].timestamp : b.startTime
+        return bLastTime - aLastTime
+      })[0]
+      
+      console.log(`💬 [${character.name}] Found ongoing conversation with ${mostRecent.participants.length} participants`)
+      return mostRecent
+    }
+    
+    return null
+  }
+
+  buildOngoingConversationContext(conversation, character) {
+    if (!conversation || !conversation.messages) return ''
+    
+    // Get the last 3-5 messages to provide conversation context
+    const recentMessages = conversation.messages.slice(-4)
+    
+    if (recentMessages.length === 0) return ''
+    
+    // Get participant names for context
+    const participantNames = conversation.participants
+      .map(id => this.charactersStore?.getCharacter(id)?.name || `Character ${id}`)
+      .filter(name => name !== character.name) // Exclude the current character
+      .join(', ')
+    
+    // Build conversation summary
+    let conversationContext = `\nONGOING CONVERSATION NEARBY:\n`
+    conversationContext += `Participants: ${participantNames}\n`
+    conversationContext += `Recent messages:\n`
+    
+    recentMessages.forEach(message => {
+      const speakerName = this.charactersStore?.getCharacter(message.speakerId)?.name || 'Someone'
+      const messagePreview = message.content.length > 100 ? 
+        message.content.substring(0, 100) + '...' : message.content
+      conversationContext += `- ${speakerName}: "${messagePreview}"\n`
+    })
+    
+    conversationContext += `\nYou can join this conversation by speaking, or continue with your own activities.`
+    
+    return conversationContext
   }
 }
 

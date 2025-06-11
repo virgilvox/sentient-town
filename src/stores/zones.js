@@ -38,6 +38,34 @@ export const useZonesStore = defineStore('zones', () => {
 
   // Actions
   async function loadZones() {
+    // Debug and potentially clear problematic localStorage
+    try {
+      const savedChanges = localStorage.getItem('meadowloop-zones')
+      if (savedChanges) {
+        console.log('🗺️ Found saved zone changes:', savedChanges.substring(0, 100) + '...')
+        const parsed = JSON.parse(savedChanges)
+        console.log('🗺️ Parsed saved changes:', parsed)
+        
+        // Validate the structure of saved changes
+        if (parsed && typeof parsed === 'object') {
+          // Check if the saved changes have the expected structure
+          const hasValidStructure = (
+            (!parsed.added || Array.isArray(parsed.added)) &&
+            (!parsed.modified || Array.isArray(parsed.modified)) &&
+            (!parsed.deleted || Array.isArray(parsed.deleted))
+          )
+          
+          if (!hasValidStructure) {
+            console.warn('🗺️ Invalid localStorage structure detected, clearing...')
+            localStorage.removeItem('meadowloop-zones')
+          }
+        }
+      }
+    } catch (storageError) {
+      console.warn('🗺️ Corrupted localStorage detected, clearing:', storageError)
+      localStorage.removeItem('meadowloop-zones')
+    }
+    
     const assetStore = useAssetStore()
     if (assetStore.customZones && assetStore.customZones.length > 0) {
       console.log('🗺️ Loading custom zones from asset store...')
@@ -47,24 +75,125 @@ export const useZonesStore = defineStore('zones', () => {
     }
 
     try {
+      console.log('🗺️ Attempting to load zones from /map/zones.json...')
       const response = await fetch('/map/zones.json')
-      const data = await response.json()
       
-      originalZones.value = data.zones
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+      
+      const data = await response.json()
+      console.log('🗺️ Loaded zones data:', data)
+      console.log('🗺️ Data type:', typeof data)
+      console.log('🗺️ Data.zones exists:', 'zones' in data)
+      console.log('🗺️ Data.zones type:', typeof data.zones)
+      console.log('🗺️ Data.zones is array:', Array.isArray(data.zones))
+      
+      // Validate the data structure
+      if (!data || typeof data !== 'object') {
+        throw new Error('Invalid zones data: not an object')
+      }
+      
+      // Handle different possible data structures
+      let zonesArray = []
+      if (Array.isArray(data)) {
+        // Data is directly an array of zones
+        zonesArray = data
+        console.log('🗺️ Zones data is a direct array')
+      } else if (data.zones && Array.isArray(data.zones)) {
+        // Data has a zones property with array
+        zonesArray = data.zones
+        console.log('🗺️ Zones data has zones property')
+      } else {
+        throw new Error('Invalid zones data: no zones array found')
+      }
+      
+      console.log('🗺️ About to assign zonesArray:', zonesArray)
+      console.log('🗺️ ZonesArray length:', zonesArray.length)
+      console.log('🗺️ ZonesArray is array:', Array.isArray(zonesArray))
+      
+      try {
+        originalZones.value = zonesArray
+        console.log('🗺️ Successfully assigned to originalZones')
+      } catch (assignError) {
+        console.error('🗺️ Error assigning to originalZones:', assignError)
+        throw assignError
+      }
       
       // Load any modifications from localStorage
       const savedChanges = localStorage.getItem('meadowloop-zones')
       if (savedChanges) {
-        const changes = JSON.parse(savedChanges)
-        zones.value = mergeZoneChanges(data.zones, changes)
+        try {
+          const changes = JSON.parse(savedChanges)
+          zones.value = mergeZoneChanges(zonesArray, changes)
+          console.log('🗺️ Applied saved zone changes')
+        } catch (parseError) {
+          console.warn('🗺️ Failed to parse saved zone changes, using original zones:', parseError)
+          zones.value = [...zonesArray]
+        }
       } else {
-        zones.value = [...data.zones]
+        zones.value = [...zonesArray]
       }
       
+      console.log(`🗺️ Successfully loaded ${zones.value.length} zones`)
       isLoaded.value = true
+      
     } catch (error) {
-      console.error('Failed to load zones:', error)
-      throw error
+      console.warn('🗺️ Failed to load zones from file:', error.message)
+      console.log('🗺️ Creating default zones as fallback...')
+      
+      // Create default zones as fallback
+      const defaultZones = [
+        {
+          id: 'town-center',
+          name: 'Town Center',
+          type: 'public',
+          tiles: [
+            { x: 24, y: 18 }, { x: 25, y: 18 }, { x: 26, y: 18 },
+            { x: 24, y: 19 }, { x: 25, y: 19 }, { x: 26, y: 19 },
+            { x: 24, y: 20 }, { x: 25, y: 20 }, { x: 26, y: 20 }
+          ],
+          description: 'Central gathering place of the town'
+        },
+        {
+          id: 'residential-area',
+          name: 'Residential Area',
+          type: 'home',
+          tiles: [
+            { x: 8, y: 25 }, { x: 9, y: 25 }, { x: 10, y: 25 }, { x: 11, y: 25 },
+            { x: 8, y: 26 }, { x: 9, y: 26 }, { x: 10, y: 26 }, { x: 11, y: 26 },
+            { x: 8, y: 27 }, { x: 9, y: 27 }, { x: 10, y: 27 }, { x: 11, y: 27 }
+          ],
+          description: 'Cozy homes where townsfolk live'
+        },
+        {
+          id: 'market-street',
+          name: 'Market Street',
+          type: 'street',
+          tiles: [
+            { x: 15, y: 18 }, { x: 16, y: 18 }, { x: 17, y: 18 }, { x: 18, y: 18 },
+            { x: 19, y: 18 }, { x: 20, y: 18 }, { x: 21, y: 18 }, { x: 22, y: 18 }
+          ],
+          description: 'Main thoroughfare connecting key locations'
+        },
+        {
+          id: 'town-park',
+          name: 'Town Park',
+          type: 'park',
+          tiles: [
+            { x: 30, y: 15 }, { x: 31, y: 15 }, { x: 32, y: 15 }, { x: 33, y: 15 },
+            { x: 30, y: 16 }, { x: 31, y: 16 }, { x: 32, y: 16 }, { x: 33, y: 16 },
+            { x: 30, y: 17 }, { x: 31, y: 17 }, { x: 32, y: 17 }, { x: 33, y: 17 }
+          ],
+          description: 'Green space with trees and paths for relaxation'
+        }
+      ]
+      
+      originalZones.value = defaultZones
+      zones.value = [...defaultZones]
+      
+      console.log(`🗺️ Created ${defaultZones.length} default zones`)
+      isLoaded.value = true
     }
   }
 

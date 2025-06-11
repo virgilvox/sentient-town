@@ -64,7 +64,7 @@ export class OpenAIAssetsService {
   }
 
   async generateCharacterSprite(character, targetSize = 128) {
-    console.log(`🎨 Generating ${targetSize}x${targetSize} sprite for ${character.name}...`)
+    console.log(`🎨 Generating ${targetSize}x${targetSize} sprite for ${character.name} using GPT Image 1...`)
     
     // Ensure we have a valid API key
     this.ensureApiKey()
@@ -77,35 +77,99 @@ export class OpenAIAssetsService {
     
     let prompt
     if (isCustomPrompt) {
-      // Use custom prompt with minimal technical append to avoid exceeding 1000 chars
+      // Use custom prompt with minimal technical append
       prompt = `${character.description}
 
-TECHNICAL: Transparent PNG, ${targetSize}x${targetSize} pixel art sprite, single character, game-ready.`
+TECHNICAL: Full body front facing pixel art character, centered, transparent background, for use in pixel art game.`
     } else {
-      // Use default prompt which already includes technical requirements
-      prompt = this.buildSpritePrompt(character, targetSize)
+      // Use much simpler prompt that works well with GPT Image 1
+      prompt = this.buildSimpleSpritePrompt(character)
     }
     
-    console.log('🎨 Using prompt:', prompt.substring(0, 100) + '...')
+    console.log('🎨 Using GPT Image 1 with prompt:', prompt.substring(0, 100) + '...')
     
-    // Use DALL-E 2 for sprites since we're shrinking them anyway - much more efficient!
-    const imageUrl = await this.callDallE2API(prompt, '512x512', true) // 512x512 is plenty for sprites
+    // Use GPT Image 1 at 1024x1024, then downscale for optimal sprite storage
+    const imageUrl = await this.callGPTImage1API(prompt, '1024x1024', true) // true = transparent background
     
-    // Convert URL to base64 with resizing for optimal sprite storage
-    const base64Data = await this.convertImageToBase64(imageUrl, true, targetSize) // true = resize, targetSize x targetSize = target size
+    // Convert URL to base64 with aggressive compression for sprites
+    let compressionLevel = 0.85 // High quality for sprites
+    if (targetSize <= 96) compressionLevel = 0.8 // More compression for tiny sprites
     
-    console.log(`✅ Successfully generated and resized sprite for ${character.name} (${targetSize}x${targetSize})`)
+    const base64Data = await this.convertImageToBase64(imageUrl, true, targetSize, compressionLevel)
+    
+    console.log(`✅ Successfully generated and optimized sprite for ${character.name} (${targetSize}x${targetSize})`)
     return base64Data
   }
 
-  buildSpritePrompt(character, targetSize) {
-    return `Pixel art character sprite for ${character.name}.
+  buildSimpleSpritePrompt(character) {
+    // Much simpler prompt based on successful example - GPT Image 1 works better with concise prompts
+    const characterDescription = character.description || `${character.MBTI} personality character`
+    
+    return `Full body front facing pixel art of ${character.name}, a ${characterDescription}. Centered, for use in a pixel art HTML5 game, transparent background.`
+  }
 
-CHARACTER: ${character.MBTI} personality. ${character.description || 'Friendly character'}
+  async callGPTImage1API(prompt, size = '1024x1024', isTransparent = false) {
+    try {
+      console.log('🎨 Calling GPT Image 1 API...', { prompt: prompt.substring(0, 50) + '...', size, isTransparent })
+      
+      // Ensure we have a valid API key
+      const apiKey = this.ensureApiKey()
+      
+      // GPT Image 1 supports these sizes
+      const validSizes = ['1024x1024', '1536x1024', '1024x1536']
+      if (!validSizes.includes(size)) {
+        console.warn(`⚠️ Invalid size ${size} for GPT Image 1, using 1024x1024`)
+        size = '1024x1024'
+      }
+      
+      // Add transparency request to prompt if needed
+      const enhancedPrompt = isTransparent 
+        ? `${prompt}. Transparent background.`
+        : prompt
 
-STYLE: 16-bit pixel art, cartoonish, bright colors, black outlines, sharp edges, facing forward, full body, standing pose, centered.
+      const response = await fetch('/api/openai/v1/images/generations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-image-1',
+          prompt: enhancedPrompt,
+          n: 1,
+          size: size,
+          quality: 'high'
+          // Note: GPT Image 1 doesn't use response_format parameter
+        })
+      })
 
-TECHNICAL: Transparent PNG background, single character only, ${targetSize}x${targetSize} optimized, high contrast, no text/UI/multiple characters/backgrounds/environments, game-ready sprite asset.`
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        console.error('❌ GPT Image 1 API Error:', response.status, errorData)
+        throw new Error(errorData.error?.message || `HTTP ${response.status}`)
+      }
+
+      const data = await response.json()
+      console.log('✅ GPT Image 1 API Response received')
+
+      // Handle base64 response format (GPT Image 1 returns b64_json, not url)
+      if (data.data?.[0]?.b64_json) {
+        // Convert base64 to data URL
+        const base64Data = data.data[0].b64_json
+        const dataUrl = `data:image/png;base64,${base64Data}`
+        console.log('✅ GPT Image 1 returned base64 data, converted to data URL')
+        return dataUrl
+      } else if (data.data?.[0]?.url) {
+        // Fallback for URL format (just in case)
+        return data.data[0].url
+      } else {
+        console.error('❌ Unexpected GPT Image 1 response format:', data)
+        throw new Error('Invalid response from GPT Image 1 API - no image data returned')
+      }
+    } catch (error) {
+      console.error('❌ GPT Image 1 API call failed:', error)
+      throw error
+    }
   }
 
   async callDallE3API(prompt, size = '1024x1024', isTransparent = false) {
@@ -220,39 +284,7 @@ TECHNICAL: Transparent PNG background, single character only, ${targetSize}x${ta
     }
   }
 
-  async resizeImageToSprite(imageUrl, targetSize = 128) {
-    return new Promise((resolve, reject) => {
-      const img = new Image()
-      img.crossOrigin = 'anonymous'
-      
-      img.onload = () => {
-        // Create canvas for resizing
-        const canvas = document.createElement('canvas')
-        const ctx = canvas.getContext('2d')
-        
-        canvas.width = targetSize
-        canvas.height = targetSize
-        
-        // Disable smoothing for pixel art
-        ctx.imageSmoothingEnabled = false
-        ctx.webkitImageSmoothingEnabled = false
-        ctx.mozImageSmoothingEnabled = false
-        ctx.msImageSmoothingEnabled = false
-        
-        // Draw the resized image
-        ctx.drawImage(img, 0, 0, targetSize, targetSize)
-        
-        // Convert back to data URL
-        const resizedDataUrl = canvas.toDataURL('image/png')
-        resolve(resizedDataUrl)
-      }
-      
-      img.onerror = () => reject(new Error('Failed to load image for resizing'))
-      img.src = imageUrl
-    })
-  }
-
-  async convertImageToBase64(imageUrl, shouldResize = false, targetSize = 128) {
+  async convertImageToBase64(imageUrl, shouldResize = false, targetSize = 128, compressionLevel = 0.8) {
     const response = await fetch(imageUrl)
     
     if (!response.ok) {
@@ -273,54 +305,141 @@ TECHNICAL: Transparent PNG background, single character only, ${targetSize}x${ta
       reader.readAsDataURL(blob)
     })
 
-    // If resizing is requested, resize the image
+    // If resizing is requested, resize and compress the image
     if (shouldResize) {
-      console.log(`🔄 Resizing image to ${targetSize}x${targetSize} for optimal storage`)
-      const resizedDataUrl = await this.resizeImageToSprite(originalDataUrl, targetSize)
+      console.log(`🔄 Resizing and compressing image to ${targetSize}x${targetSize} with ${compressionLevel} quality`)
+      const compressedDataUrl = await this.resizeAndCompressImage(originalDataUrl, targetSize, compressionLevel)
       
       // Log size comparison
       const originalSize = (originalDataUrl.length * 0.75) / 1024 // KB
-      const resizedSize = (resizedDataUrl.length * 0.75) / 1024 // KB
-      console.log(`📊 Size reduction: ${originalSize.toFixed(1)}KB → ${resizedSize.toFixed(1)}KB (${((1 - resizedSize/originalSize) * 100).toFixed(1)}% smaller)`)
+      const compressedSize = (compressedDataUrl.length * 0.75) / 1024 // KB
+      console.log(`📊 Size optimization: ${originalSize.toFixed(1)}KB → ${compressedSize.toFixed(1)}KB (${((1 - compressedSize/originalSize) * 100).toFixed(1)}% smaller)`)
       
-      return resizedDataUrl
+      return compressedDataUrl
     }
 
-    // For images without resizing, check size and warn if too large
-    const maxSize = 4 * 1024 * 1024 // 4MB limit
+    // For images without resizing, still compress if they're large
+    const maxSize = 2 * 1024 * 1024 // 2MB limit for unresized images
     if (blob.size > maxSize) {
-      console.warn(`⚠️ Image size (${(blob.size / 1024 / 1024).toFixed(2)}MB) may be too large for localStorage`)
+      console.warn(`⚠️ Large image detected (${(blob.size / 1024 / 1024).toFixed(2)}MB), applying compression`)
+      return this.compressImage(originalDataUrl, 0.8) // 80% quality
     }
     
     return originalDataUrl
   }
 
+  async resizeAndCompressImage(imageDataUrl, targetSize = 128, quality = 0.8) {
+    return new Promise((resolve, reject) => {
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
+      
+      img.onload = () => {
+        // Create canvas for resizing
+        const canvas = document.createElement('canvas')
+        const ctx = canvas.getContext('2d')
+        
+        canvas.width = targetSize
+        canvas.height = targetSize
+        
+        // Use smooth scaling for better quality at smaller sizes
+        ctx.imageSmoothingEnabled = true
+        ctx.imageSmoothingQuality = 'high'
+        
+        // Draw the resized image
+        ctx.drawImage(img, 0, 0, targetSize, targetSize)
+        
+        // Apply progressive compression based on target size
+        let finalQuality = quality
+        if (targetSize <= 96) {
+          finalQuality = Math.max(0.6, quality - 0.1) // More compression for tiny sprites
+        } else if (targetSize <= 128) {
+          finalQuality = Math.max(0.7, quality - 0.05) // Slight compression for small sprites
+        }
+        
+        // Convert with compression
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', finalQuality)
+        
+        // Try WebP if browser supports it and it results in smaller size
+        try {
+          const webpDataUrl = canvas.toDataURL('image/webp', finalQuality)
+          if (webpDataUrl.length < compressedDataUrl.length && webpDataUrl !== 'data:,') {
+            console.log('📦 Using WebP format for better compression')
+            resolve(webpDataUrl)
+            return
+          }
+        } catch (error) {
+          console.log('📦 WebP not supported, using JPEG')
+        }
+        
+        resolve(compressedDataUrl)
+      }
+      
+      img.onerror = () => reject(new Error('Failed to load image for resizing'))
+      img.src = imageDataUrl
+    })
+  }
+
+  async compressImage(imageDataUrl, quality = 0.8) {
+    return new Promise((resolve, reject) => {
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
+      
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        const ctx = canvas.getContext('2d')
+        
+        canvas.width = img.width
+        canvas.height = img.height
+        
+        ctx.drawImage(img, 0, 0)
+        
+        // Try WebP first for better compression
+        try {
+          const webpDataUrl = canvas.toDataURL('image/webp', quality)
+          if (webpDataUrl !== 'data:,') {
+            resolve(webpDataUrl)
+            return
+          }
+        } catch (error) {
+          // WebP not supported
+        }
+        
+        // Fallback to JPEG
+        const jpegDataUrl = canvas.toDataURL('image/jpeg', quality)
+        resolve(jpegDataUrl)
+      }
+      
+      img.onerror = () => reject(new Error('Failed to load image for compression'))
+      img.src = imageDataUrl
+    })
+  }
+
   async generateTownMapWithZones(prompt, targetDisplaySize = 800) {
-    console.log('🗺️ Generating town map with smart resolution...')
+    console.log('🗺️ Generating town map with GPT Image 1...')
     
     this.ensureApiKey()
     
-    const fullPrompt = `Top-down pixel art town map for life simulation game.
-
-${prompt}
-
-STYLE: 16-bit pixel art (Stardew Valley style), vibrant colors, sharp pixels, no anti-aliasing, top-down view, complete map filling entire image.
-
-TECHNICAL: No grid lines, UI elements, text labels, zone names, numbers, coordinates, character sprites, minimaps, HUD elements, arrows, icons, symbols, editor markings. Pure game terrain and buildings only. Solid opaque background.`
+    // Much simpler prompt based on success with sprite generation
+    const fullPrompt = `Top-down pixel art town map for life simulation game. ${prompt}. 16-bit pixel art style, vibrant colors, complete overhead view of entire town with buildings, paths, and zones.`
     
     try {
-      // Use DALL-E 3 for high quality maps, but at reasonable resolution
-      const imageUrl = await this.callDallE3API(fullPrompt, '1024x1024', false) // false for opaque background
+      // Use GPT Image 1 for high quality maps
+      const imageUrl = await this.callGPTImage1API(fullPrompt, '1024x1024', false) // false for opaque background
       
-      // Resize map to reasonable display size (much smaller than 1024x1024 for web use)
-      const base64Data = await this.convertImageToBase64(imageUrl, true, targetDisplaySize) // Resize maps too!
+      // Use progressive compression for maps based on target size
+      let compressionLevel = 0.85 // Good quality for maps
+      if (targetDisplaySize <= 600) compressionLevel = 0.8
+      if (targetDisplaySize >= 1024) compressionLevel = 0.9 // Higher quality for large maps
+      
+      // Resize map to reasonable display size with optimized compression
+      const base64Data = await this.convertImageToBase64(imageUrl, true, targetDisplaySize, compressionLevel)
       
       console.log('🤖 Using Claude to analyze the generated map and determine zones...')
       
       // Use Claude to analyze the image and determine zones
       const generatedZones = await this.analyzeMapWithClaude(base64Data, prompt)
       
-      console.log('✅ Successfully generated town map with Claude-analyzed zones')
+      console.log('✅ Successfully generated and optimized town map with Claude-analyzed zones')
       return {
         mapImageUrl: base64Data,
         zones: generatedZones
@@ -335,122 +454,25 @@ TECHNICAL: No grid lines, UI elements, text labels, zone names, numbers, coordin
   }
 
   async analyzeMapWithClaude(base64ImageData, originalPrompt) {
-    console.log('🧠 Analyzing map image with Claude...')
+    console.log('🔍 Starting Claude map analysis for zone generation...')
     
     try {
-      // Import Claude API
-      const claudeApi = await import('@/services/claudeApi')
+      // Import Claude service
+      const { default: claudeApi } = await import('./claudeApi.js')
       
-      // Check if Claude API is available
-      if (!claudeApi.default.getApiKey()) {
-        console.warn('⚠️ Claude API not available, falling back to prompt-based zone generation')
-        return this.generateLogicalZones(originalPrompt)
-      }
-
-      const analysisPrompt = `You are analyzing a top-down pixel art town map image for a life simulation game. The game uses a 50x37 tile grid system.
-
-ORIGINAL PROMPT CONTEXT: ${originalPrompt}
-
-Please analyze this image and identify 6-12 distinct zones. For each zone you identify, provide:
-1. A descriptive name for the zone
-2. The type of zone (home, shop, public, park, street)
-3. SPECIFIC GRID COORDINATES (x,y) for the zone boundaries
-4. Visual characteristics you can see
-
-IMPORTANT: The map uses a 50-tile wide by 37-tile tall grid. Please provide actual grid coordinates:
-- X coordinates should be between 0-49 (left to right)
-- Y coordinates should be between 0-36 (top to bottom)
-- For each zone, specify the top-left corner (startX, startY) and dimensions (width, height)
-- OR specify a list of specific tile coordinates that make up the zone
-
-Look for these elements and give precise coordinates:
-- Buildings (estimate their grid positions)
-- Pathways and roads (specify their tile paths)
-- Open areas like parks or plazas
-- Shop fronts and entrances
-- Residential areas
-
-Respond in JSON format:
-{
-  "zones": [
-    {
-      "name": "Zone Name",
-      "type": "home|shop|public|park|street",
-      "coordinates": {
-        "method": "rectangle",
-        "startX": 10,
-        "startY": 5,
-        "width": 8,
-        "height": 6
-      },
-      "visualDescription": "what you see in this area"
-    }
-  ]
-}
-
-For irregular shapes, use:
-{
-  "coordinates": {
-    "method": "tiles",
-    "tiles": [
-      {"x": 10, "y": 5},
-      {"x": 11, "y": 5},
-      {"x": 10, "y": 6}
-    ]
-  }
-}`
-
-      // Call Claude API with image analysis
-      const response = await claudeApi.default.makeApiCall({
-        model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 3000,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: "text",
-                text: analysisPrompt
-              },
-              {
-                type: "image",
-                source: {
-                  type: "base64",
-                  media_type: "image/png",
-                  data: base64ImageData.split(',')[1] // Remove the data:image/png;base64, prefix
-                }
-              }
-            ]
-          }
-        ]
-      })
-
-      const responseText = response.content[0].text.trim()
-      console.log('🧠 Claude analysis response:', responseText.substring(0, 200) + '...')
-
-      // Extract JSON from Claude's response
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/)
-      if (!jsonMatch) {
-        console.warn('⚠️ No valid JSON found in Claude response, falling back to prompt-based generation')
-        return this.generateLogicalZones(originalPrompt)
-      }
-
-      const analysisResult = JSON.parse(jsonMatch[0])
+      // Use the new method that automatically uses Sonnet for complex map analysis
+      const zones = await claudeApi.analyzeMapForZones(base64ImageData, originalPrompt)
       
-      if (!analysisResult.zones || !Array.isArray(analysisResult.zones)) {
-        console.warn('⚠️ Invalid zone structure from Claude, falling back to prompt-based generation')
-        return this.generateLogicalZones(originalPrompt)
-      }
-
-      // Convert Claude's coordinate specifications to tile arrays
-      const finalZones = this.convertClaudeCoordinatesToTiles(analysisResult.zones)
+      console.log('✅ Claude map analysis completed successfully')
+      console.log('📊 Generated zones:', zones)
       
-      console.log(`🎯 Claude identified ${finalZones.length} zones with precise coordinates`)
-      return finalZones
-
+      return zones
+      
     } catch (error) {
-      console.error('❌ Error analyzing map with Claude:', error)
-      console.log('🔄 Falling back to prompt-based zone generation')
+      console.error('❌ Claude map analysis failed:', error)
+      
+      // Fallback to logical zone generation if Claude analysis fails
+      console.log('🔄 Falling back to logical zone generation...')
       return this.generateLogicalZones(originalPrompt)
     }
   }
@@ -838,6 +860,163 @@ For irregular shapes, use:
       reader.onerror = reject
       reader.readAsDataURL(blob)
     })
+  }
+
+  // NEW: Batch generate default assets for the project
+  async generateDefaultAssets(characters, existingZones = []) {
+    console.log('🏭 Starting batch generation of default assets...')
+    const results = {
+      sprites: {},
+      map: null,
+      zones: [],
+      totalSizeKB: 0,
+      errors: []
+    }
+
+    try {
+      // Generate optimized sprites for all characters
+      console.log(`👥 Generating sprites for ${characters.length} characters...`)
+      for (const character of characters) {
+        try {
+          console.log(`🎨 Generating default sprite for ${character.name}...`)
+          const spriteData = await this.generateCharacterSprite(character, 128) // Standard size
+          results.sprites[character.name] = spriteData
+          
+          // Calculate size
+          const sizeKB = (spriteData.length * 0.75) / 1024
+          results.totalSizeKB += sizeKB
+          console.log(`✅ Generated sprite for ${character.name}: ${sizeKB.toFixed(1)}KB`)
+        } catch (error) {
+          console.error(`❌ Failed to generate sprite for ${character.name}:`, error)
+          results.errors.push(`Sprite for ${character.name}: ${error.message}`)
+        }
+      }
+
+      // Generate optimized town map
+      console.log('🗺️ Generating default town map...')
+      try {
+        const mapPrompt = this.buildDefaultMapPrompt(characters, existingZones)
+        const mapResult = await this.generateTownMapWithZones(mapPrompt, 800) // Good balance of quality and size
+        
+        results.map = mapResult.mapImageUrl
+        results.zones = mapResult.zones
+        
+        const mapSizeKB = (mapResult.mapImageUrl.length * 0.75) / 1024
+        results.totalSizeKB += mapSizeKB
+        console.log(`✅ Generated town map: ${mapSizeKB.toFixed(1)}KB with ${mapResult.zones.length} zones`)
+      } catch (error) {
+        console.error(`❌ Failed to generate town map:`, error)
+        results.errors.push(`Town map: ${error.message}`)
+      }
+
+      console.log(`🏭 Batch generation complete. Total size: ${results.totalSizeKB.toFixed(1)}KB`)
+      if (results.errors.length > 0) {
+        console.warn(`⚠️ ${results.errors.length} errors occurred during generation`)
+      }
+
+      return results
+    } catch (error) {
+      console.error('❌ Batch asset generation failed:', error)
+      throw error
+    }
+  }
+
+  buildDefaultMapPrompt(characters, existingZones) {
+    // Build a comprehensive prompt based on character needs and existing zones
+    const characterNames = characters.map(c => c.name).join(', ')
+    const zoneTypes = ['bakery', 'florist', 'workshop', 'town square', 'park', 'residential area']
+    
+    const characterSpecificPlaces = characters.map(char => {
+      if (char.name.toLowerCase().includes('sage')) return "herbal bakery"
+      if (char.name.toLowerCase().includes('rose')) return "flower shop"
+      if (char.name.toLowerCase().includes('griff')) return "workshop or craft area"
+      return "cozy home area"
+    }).filter((place, index, self) => self.indexOf(place) === index)
+
+    return `A charming pixel art town designed for ${characterNames}. Include these essential areas: ${[...zoneTypes, ...characterSpecificPlaces].join(', ')}. The town should have cobblestone paths connecting all areas, green spaces, and a central gathering point. Make it feel cozy and lived-in with vibrant colors and clear distinct zones.`
+  }
+
+  // NEW: Save generated assets as default files (returns download objects for manual saving)
+  async generateDefaultAssetsForDownload(characters, existingZones = []) {
+    const results = await this.generateDefaultAssets(characters, existingZones)
+    const downloadableFiles = []
+
+    // Prepare character sprites for download
+    for (const [characterName, spriteData] of Object.entries(results.sprites)) {
+      // Convert data URL to blob for download
+      const response = await fetch(spriteData)
+      const blob = await response.blob()
+      
+      downloadableFiles.push({
+        filename: `${characterName.toLowerCase()}_sprite.png`,
+        blob: blob,
+        path: `public/characters/${characterName}/sprite.png`,
+        type: 'character_sprite',
+        character: characterName
+      })
+    }
+
+    // Prepare map for download
+    if (results.map) {
+      const response = await fetch(results.map)
+      const blob = await response.blob()
+      
+      downloadableFiles.push({
+        filename: 'town_map.png',
+        blob: blob,
+        path: 'public/map/map.png',
+        type: 'town_map'
+      })
+    }
+
+    // Prepare zones data for download
+    if (results.zones.length > 0) {
+      const zonesJson = JSON.stringify(results.zones, null, 2)
+      const zonesBlob = new Blob([zonesJson], { type: 'application/json' })
+      
+      downloadableFiles.push({
+        filename: 'zones.json',
+        blob: zonesBlob,
+        path: 'public/map/zones.json',
+        type: 'zones_data'
+      })
+    }
+
+    return {
+      files: downloadableFiles,
+      summary: {
+        totalFiles: downloadableFiles.length,
+        totalSizeKB: results.totalSizeKB,
+        errors: results.errors,
+        sprites: Object.keys(results.sprites).length,
+        hasMap: !!results.map,
+        zoneCount: results.zones.length
+      }
+    }
+  }
+
+  // NEW: Utility to trigger downloads of all generated assets
+  downloadGeneratedAssets(downloadableFiles) {
+    console.log(`📥 Starting download of ${downloadableFiles.length} generated assets...`)
+    
+    downloadableFiles.forEach((file, index) => {
+      setTimeout(() => {
+        const url = URL.createObjectURL(file.blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = file.filename
+        a.style.display = 'none'
+        
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        
+        URL.revokeObjectURL(url)
+        console.log(`📥 Downloaded: ${file.filename} (${file.type})`)
+      }, index * 500) // Stagger downloads by 500ms to avoid browser blocking
+    })
+    
+    console.log(`✅ All ${downloadableFiles.length} assets queued for download`)
   }
 }
 

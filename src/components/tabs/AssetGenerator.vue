@@ -9,10 +9,10 @@
         <h4>💡 Smart Resolution System</h4>
         <div class="info-grid">
           <div class="info-item">
-            <strong>🗺️ Maps:</strong> Uses DALL-E 3 at 1024x1024, then resizes to your chosen display size for optimal web performance.
+            <strong>🗺️ Maps:</strong> Uses GPT Image 1 at 1024x1024, then resizes to your chosen display size for optimal web performance.
           </div>
           <div class="info-item">
-            <strong>👤 Sprites:</strong> Uses DALL-E 2 at 512x512, then resizes to your chosen sprite size for efficient storage.
+            <strong>👤 Sprites:</strong> Uses GPT Image 1 at 1024x1024, then resizes to your chosen sprite size for efficient storage.
           </div>
           <div class="info-item">
             <strong>📊 Storage Savings:</strong> Reduces file sizes by 70-90% compared to full-resolution outputs while maintaining visual quality.
@@ -157,7 +157,7 @@
           <option value="128">128x128 (Standard - Balanced, ~80KB)</option>
           <option value="192">192x192 (Large - High Detail, ~150KB)</option>
         </select>
-        <p class="help-text">💡 Uses DALL-E 2 at 512x512, then resizes for optimal storage. 128x128 is recommended for most games.</p>
+        <p class="help-text">💡 Uses GPT Image 1 at 1024x1024, then resizes for optimal storage. 128x128 is recommended for most games.</p>
       </div>
       
       <button @click="generateSprite" :disabled="!selectedCharacterId || isGeneratingSprite" class="generate-btn">
@@ -179,6 +179,60 @@
         <input type="file" ref="importFile" @change="importTown" style="display: none" accept=".json"/>
         <button @click="clearAssets" class="tool-btn danger">🗑️ Clear All Custom Assets</button>
       </div>
+    </div>
+
+    <!-- Batch Asset Generation -->
+    <div class="section">
+      <h4>🎨 Batch Asset Generation</h4>
+      <div class="form-group">
+        <label for="batch-prompt">Batch Prompt:</label>
+        <textarea
+          id="batch-prompt"
+          v-model="batchPrompt"
+          class="prompt-textarea"
+          rows="3"
+          placeholder="Describe the batch generation requirements."
+        ></textarea>
+      </div>
+      
+      <button @click="generateDefaultAssets" :disabled="isBatchGenerating" class="generate-btn">
+        {{ isBatchGenerating ? '🎨 Generating Batch Assets...' : '🎨 Generate Batch Assets' }}
+      </button>
+      
+      <div v-if="batchProgress" class="batch-progress">
+        {{ batchProgress }}
+      </div>
+      
+      <div v-if="batchResults" class="batch-results">
+        <div class="results-summary">
+          <div class="result-stat">
+            <span class="value">{{ batchResults.summary.totalFiles }}</span>
+            <span class="label">Total Files</span>
+          </div>
+          <div class="result-stat">
+            <span class="value">{{ batchResults.summary.totalSizeKB.toFixed(1) }} KB</span>
+            <span class="label">Total Size</span>
+          </div>
+          <div class="result-stat">
+            <span class="value">{{ batchResults.summary.errors.length }}</span>
+            <span class="label">Errors</span>
+          </div>
+        </div>
+        
+        <div class="download-section">
+          <button @click="downloadAllAssets" class="btn-download">
+            📥 Download All Assets
+          </button>
+          <button @click="clearBatchResults" class="btn-clear">
+            🗑️ Clear Results
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Status Messages -->
+    <div v-if="statusMessage" :class="['status-message', statusType]">
+      {{ statusMessage }}
     </div>
   </div>
 </template>
@@ -210,6 +264,11 @@ const generatedSpriteUrl = ref(null)
 const mapDisplaySize = ref(800) // Default map display size
 const importFile = ref(null)
 const storageUsage = ref({ used: 0, total: 5 * 1024 * 1024 }) // 5MB default
+
+// NEW: Status message variables
+const statusMessage = ref('')
+const statusType = ref('')
+const batchPrompt = ref('')
 
 const storagePercentage = computed(() => {
   return Math.min(100, (storageUsage.value.used / storageUsage.value.total) * 100)
@@ -417,11 +476,22 @@ function importTown(event) {
     try {
       const data = JSON.parse(e.target.result)
       
-      // Import into each store
-      characters.characters.value = data.characters
-      zones.zones.value = data.zones
-      Object.assign(simulation.$state, data.simulation)
-      assetStore.importTownData(data)
+      // Import into each store with validation
+      if (data.characters && Array.isArray(data.characters)) {
+        characters.characters.value = data.characters
+      }
+      
+      if (data.zones && Array.isArray(data.zones)) {
+        zones.zones.value = data.zones
+      }
+      
+      if (data.simulation && typeof data.simulation === 'object') {
+        Object.assign(simulation.$state, data.simulation)
+      }
+      
+      if (data.assetStore && typeof data.assetStore === 'object') {
+        assetStore.importTownData(data)
+      }
 
       characters.saveCharacterChanges()
       zones.saveZoneChanges()
@@ -445,6 +515,86 @@ function clearAssets() {
     window.location.reload()
   }
 }
+
+// NEW: Batch generation state
+const isBatchGenerating = ref(false)
+const batchProgress = ref('')
+const batchResults = ref(null)
+const showOptimizationStats = ref(false)
+
+async function generateDefaultAssets() {
+  if (characters.charactersList.length === 0) {
+    showStatus('No characters found to generate sprites for', 'error')
+    return
+  }
+
+  isBatchGenerating.value = true
+  batchProgress.value = 'Starting batch asset generation...'
+  showStatus('Generating optimized default assets for entire project...', 'info')
+  
+  try {
+    // Generate all assets with compression
+    const downloadResults = await openAIAssets.generateDefaultAssetsForDownload(
+      characters.charactersList, 
+      Object.values(zones.zones)
+    )
+    
+    batchResults.value = downloadResults
+    batchProgress.value = `Generated ${downloadResults.summary.totalFiles} optimized assets (${downloadResults.summary.totalSizeKB.toFixed(1)}KB total)`
+    
+    if (downloadResults.summary.errors.length > 0) {
+      console.warn('Some errors occurred:', downloadResults.summary.errors)
+      showStatus(`⚠️ Generated ${downloadResults.summary.totalFiles} assets with ${downloadResults.summary.errors.length} errors`, 'warning')
+    } else {
+      showStatus(`✅ Successfully generated ${downloadResults.summary.totalFiles} optimized default assets!`, 'success')
+    }
+    
+  } catch (error) {
+    console.error('Error generating default assets:', error)
+    showStatus(`❌ Failed to generate default assets: ${error.message}`, 'error')
+    batchResults.value = null
+  } finally {
+    isBatchGenerating.value = false
+  }
+}
+
+// NEW: Download all generated assets
+function downloadAllAssets() {
+  if (!batchResults.value) {
+    showStatus('No generated assets to download', 'error')
+    return
+  }
+
+  try {
+    openAIAssets.downloadGeneratedAssets(batchResults.value.files)
+    showStatus(`📥 Downloading ${batchResults.value.files.length} assets...`, 'info')
+  } catch (error) {
+    console.error('Error downloading assets:', error)
+    showStatus(`❌ Failed to download assets: ${error.message}`, 'error')
+  }
+}
+
+// NEW: Clear batch results
+function clearBatchResults() {
+  batchResults.value = null
+  batchProgress.value = ''
+}
+
+function showStatus(message, type) {
+  statusMessage.value = message
+  statusType.value = type
+  
+  setTimeout(() => {
+    statusMessage.value = ''
+    statusType.value = ''
+  }, 5000)
+}
+
+onMounted(() => {
+  if (characters.charactersList.length > 0) {
+    selectedCharacterId.value = characters.charactersList[0].id
+  }
+})
 </script>
 
 <style scoped>
@@ -770,5 +920,171 @@ function clearAssets() {
   display: block;
   margin-bottom: 4px;
   color: #2d3748;
+}
+
+/* NEW: Batch generation styles */
+.default-assets-section {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 20px;
+  border-radius: 12px;
+  margin-top: 30px;
+}
+
+.default-assets-section h3 {
+  margin: 0 0 15px 0;
+  font-size: 1.3em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.batch-progress {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 15px;
+  border-radius: 8px;
+  margin: 15px 0;
+  font-family: 'Monaco', 'Consolas', monospace;
+  font-size: 0.9em;
+}
+
+.batch-results {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 15px;
+  border-radius: 8px;
+  margin: 15px 0;
+}
+
+.results-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 15px;
+  margin-bottom: 15px;
+}
+
+.result-stat {
+  text-align: center;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 10px;
+  border-radius: 6px;
+}
+
+.result-stat .value {
+  font-size: 1.5em;
+  font-weight: bold;
+  display: block;
+}
+
+.result-stat .label {
+  font-size: 0.8em;
+  opacity: 0.8;
+}
+
+.download-section {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 15px;
+}
+
+.optimization-note {
+  background: rgba(76, 175, 80, 0.1);
+  border: 1px solid rgba(76, 175, 80, 0.3);
+  padding: 12px;
+  border-radius: 8px;
+  margin: 15px 0;
+  font-size: 0.9em;
+}
+
+.compression-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9em;
+  opacity: 0.9;
+  margin-top: 5px;
+}
+
+.btn-batch {
+  background: rgba(255, 255, 255, 0.2);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.btn-batch:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.3);
+  transform: translateY(-2px);
+}
+
+.btn-batch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-download {
+  background: #4CAF50;
+  border: none;
+  color: white;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.btn-download:hover {
+  background: #45a049;
+  transform: translateY(-1px);
+}
+
+.btn-clear {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 0.9em;
+  transition: all 0.3s ease;
+}
+
+.btn-clear:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Status message styles */
+.status-message {
+  margin: 15px 0;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.status-message.success {
+  background: rgba(76, 175, 80, 0.1);
+  border: 1px solid #4CAF50;
+  color: #2E7D32;
+}
+
+.status-message.error {
+  background: rgba(244, 67, 54, 0.1);
+  border: 1px solid #F44336;
+  color: #C62828;
+}
+
+.status-message.warning {
+  background: rgba(255, 152, 0, 0.1);
+  border: 1px solid #FF9800;
+  color: #E65100;
+}
+
+.status-message.info {
+  background: rgba(33, 150, 243, 0.1);
+  border: 1px solid #2196F3;
+  color: #0D47A1;
 }
 </style> 

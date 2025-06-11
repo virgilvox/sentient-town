@@ -24,17 +24,21 @@
           <input 
             type="range" 
             id="tick-speed" 
-            v-model="tickSpeedInSeconds" 
-            @input="updateTickSpeed"
-            min="1"
+            v-model="localTickSpeed" 
+            @input="onTickSpeedInput"
+            @mousedown="isUserInteracting = true"
+            @mouseup="isUserInteracting = false"
+            @touchstart="isUserInteracting = true"
+            @touchend="isUserInteracting = false"
+            min="5"
             max="60"
             step="1"
             class="speed-slider"
           />
           <div class="speed-display">
-            <span class="speed-value">{{ tickSpeedInSeconds }}s</span>
+            <span class="speed-value">{{ localTickSpeed }}s</span>
             <div class="speed-labels">
-              <span class="speed-label-min">Fast (1s)</span>
+              <span class="speed-label-min">Fast (5s)</span>
               <span class="speed-label-max">Slow (60s)</span>
             </div>
           </div>
@@ -63,7 +67,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useUIStore, useCharactersStore, useZonesStore, useSimulationStore } from '@/stores'
 import { openAIAssets } from '@/services/openAiAssets'
 import MusicPlayer from './MusicPlayer.vue'
@@ -79,6 +83,10 @@ const tickSpeedInSeconds = ref(ui.timeSpeed || 5)
 const isSaving = ref(false)
 const isGeneratingImages = ref(false)
 const isGeneratingMap = ref(false)
+const showInjectionModal = ref(false)
+const localTickSpeed = ref(simulation.state.timeSpeed)
+const isUserInteracting = ref(false)
+const tickSpeedUpdateTimeout = ref(null)
 
 // Initialize API key input from store
 onMounted(() => {
@@ -89,27 +97,34 @@ onMounted(() => {
   
   // Initialize tick speed
   tickSpeedInSeconds.value = ui.timeSpeed || 5
+  
+  // Sync local tick speed with store when component mounts
+  localTickSpeed.value = simulation.state.timeSpeed
 })
 
 // Update tick speed when slider changes
-function updateTickSpeed() {
-  const newSpeed = parseInt(tickSpeedInSeconds.value)
-  console.log(`⏱️ Updating simulation speed to ${newSpeed} seconds per tick`)
-  ui.setTimeSpeed(newSpeed)
+function onTickSpeedInput() {
+  // Clear existing timeout
+  if (tickSpeedUpdateTimeout.value) {
+    clearTimeout(tickSpeedUpdateTimeout.value)
+  }
   
-  // If simulation is running, restart with new timing
-  if (simulation.state.isRunning) {
-    console.log('🔄 Restarting simulation with new timing...')
+  // Debounce the update to avoid constant simulation restarts
+  tickSpeedUpdateTimeout.value = setTimeout(() => {
+    updateTickSpeed()
+  }, 300)
+}
+
+function updateTickSpeed() {
+  const newSpeed = parseInt(localTickSpeed.value)
+  console.log('🎚️ Setting tick speed to:', newSpeed, 'seconds')
+  simulation.setTimeSpeed(newSpeed)
+  
+  // Only restart simulation if it's running and user isn't currently interacting
+  if (simulation.state.isRunning && !isUserInteracting.value) {
     simulation.stopSimulation()
     setTimeout(() => {
       simulation.startSimulation()
-      // Also restart the simulation engine with new timing
-      import('@/services/simulationEngine').then(({ simulationEngine }) => {
-        simulationEngine.stop()
-        setTimeout(() => {
-          simulationEngine.start()
-        }, 100)
-      })
     }, 100)
   }
 }
@@ -248,6 +263,15 @@ const simulationStatus = computed(() => {
   
   return 'API key required'
 })
+
+watch(
+  () => simulation.state.timeSpeed,
+  (newValue) => {
+    if (!isUserInteracting.value) {
+      localTickSpeed.value = newValue
+    }
+  }
+)
 </script>
 
 <style scoped>

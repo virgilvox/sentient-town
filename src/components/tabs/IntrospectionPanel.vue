@@ -142,16 +142,23 @@
             <div class="relationships-section">
               <h5>Character Relationships</h5>
               <div class="relationships-list">
+                <div v-if="!selectedCharacter.relationships || selectedCharacter.relationships.length === 0" class="no-relationships">
+                  <p>No relationships recorded yet.</p>
+                </div>
                 <div 
-                  v-for="relationshipName in selectedCharacter.relationships" 
-                  :key="relationshipName"
+                  v-else
+                  v-for="(relationship, index) in selectedCharacter.relationships" 
+                  :key="index"
                   class="relationship-item"
                 >
                   <div class="relationship-header">
-                    <span class="character-name">{{ relationshipName }}</span>
-                    <span class="affinity-badge">Known</span>
+                    <span class="character-name">{{ relationship.name || relationship }}</span>
+                    <span class="relationship-type-badge" :class="getRelationshipTypeClass(relationship.type)">
+                      {{ formatRelationshipType(relationship.type) || 'Known' }}
+                    </span>
                   </div>
-                  <div class="relationship-notes">{{ getRelationshipDescription(relationshipName) }}</div>
+                  <div v-if="relationship.notes" class="relationship-notes">{{ relationship.notes }}</div>
+                  <div v-else-if="typeof relationship === 'string'" class="relationship-notes">{{ getRelationshipDescription(relationship) }}</div>
                 </div>
               </div>
             </div>
@@ -392,6 +399,41 @@ function getRelationshipDescription(relationshipName) {
     case 'enemy': return 'Enemy'
     default: return relationshipName
   }
+}
+
+function formatRelationshipType(type) {
+  if (!type) return 'Known'
+  
+  const typeMap = {
+    'friend': '👫 Friend',
+    'close_friend': '💙 Close Friend', 
+    'best_friend': '💖 Best Friend',
+    'acquaintance': '👋 Acquaintance',
+    'neighbor': '🏠 Neighbor',
+    'colleague': '💼 Colleague',
+    'mentor': '🎓 Mentor',
+    'student': '📚 Student',
+    'family': '👨‍👩‍👧‍👦 Family',
+    'romantic_interest': '💕 Romantic Interest',
+    'partner': '💑 Partner',
+    'rival': '⚔️ Rival',
+    'enemy': '😡 Enemy',
+    'complicated': '🤷 It\'s Complicated'
+  }
+  
+  return typeMap[type] || type
+}
+
+function getRelationshipTypeClass(type) {
+  if (!type) return 'neutral'
+  
+  const positive = ['friend', 'close_friend', 'best_friend', 'family', 'romantic_interest', 'partner', 'mentor']
+  const negative = ['rival', 'enemy']
+  const neutral = ['acquaintance', 'neighbor', 'colleague', 'student', 'complicated']
+  
+  if (positive.includes(type)) return 'positive'
+  if (negative.includes(type)) return 'negative'
+  return 'neutral'
 }
 
 async function refreshThoughts() {
@@ -812,26 +854,26 @@ onMounted(() => {
   color: #495057;
 }
 
-.affinity-badge {
+.relationship-type-badge {
   padding: 2px 8px;
   border-radius: 12px;
   font-size: 11px;
   font-weight: 600;
 }
 
-.affinity-badge.high {
+.relationship-type-badge.positive {
   background: #d4edda;
   color: #155724;
 }
 
-.affinity-badge.medium {
-  background: #fff3cd;
-  color: #856404;
-}
-
-.affinity-badge.low {
+.relationship-type-badge.negative {
   background: #f8d7da;
   color: #721c24;
+}
+
+.relationship-type-badge.neutral {
+  background: #fff3cd;
+  color: #856404;
 }
 
 .relationship-notes {
@@ -984,6 +1026,13 @@ onMounted(() => {
   font-size: 14px;
   color: #667eea;
   cursor: pointer;
+}
+
+.no-relationships {
+  color: #6c757d;
+  font-style: italic;
+  text-align: center;
+  padding: 20px;
 }
 
 @media (max-width: 768px) {

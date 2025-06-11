@@ -631,8 +631,11 @@ const characters = useCharactersStore()
 const zones = useZonesStore()
 const ui = useUIStore()
 
-// Use LOCAL character selection for this component instead of global UI store
-const localSelectedCharacterId = ref(null)
+// Use GLOBAL character selection from UI store (not local state)
+const localSelectedCharacterId = computed({
+  get: () => ui.selectedCharacterId,
+  set: (value) => ui.selectCharacter(value)
+})
 const currentCharacter = ref(null)
 const isGenerating = ref(false)
 const isCreating = ref(false)
@@ -675,8 +678,8 @@ const selectedCharacter = computed(() =>
 
 const characterDetailRef = ref(null)
 
-// Update the currentCharacter ref when LOCAL selection changes
-watch(localSelectedCharacterId, (newId) => {
+// Update the currentCharacter ref when GLOBAL selection changes
+watch(() => ui.selectedCharacterId, (newId) => {
   if (newId && characters.getCharacter(newId)) {
     currentCharacter.value = { ...characters.getCharacter(newId) }
   } else {
@@ -849,10 +852,8 @@ onMounted(() => {
   // Force reset loading state to prevent stuck spinners from HMR
   isGenerating.value = false
   
-  if (characters.charactersList.length > 0 && !localSelectedCharacterId.value) {
-    localSelectedCharacterId.value = characters.charactersList[0].id
-    loadCharacter()
-  }
+  // Don't auto-select a character - let the global UI store handle selection
+  // The character will be selected when clicked on the canvas or in the character list
 })
 
 const nearbyCharacters = computed(() => {
@@ -907,12 +908,12 @@ function sortMemoriesByTime() {
 }
 
 function selectCharacter(characterId) {
-  localSelectedCharacterId.value = characterId
+  ui.selectCharacter(characterId)
 }
 
 function createNewCharacter() {
   const newChar = characters.createCharacter(newCharacterData.value)
-  localSelectedCharacterId.value = newChar.id
+  ui.selectCharacter(newChar.id)
   showCreateDialog.value = false
   
   // Reset form
@@ -929,7 +930,7 @@ function createNewCharacter() {
 function duplicateCharacter(characterId) {
   const duplicate = characters.duplicateCharacter(characterId)
   if (duplicate) {
-    localSelectedCharacterId.value = duplicate.id
+    ui.selectCharacter(duplicate.id)
   }
 }
 
@@ -937,9 +938,14 @@ function deleteCharacter(characterId) {
   if (confirm(`Are you sure you want to delete this character? This action cannot be undone.`)) {
     characters.deleteCharacter(characterId)
     
-    // If the deleted character was selected, select another one
-    if (localSelectedCharacterId.value === characterId) {
-      localSelectedCharacterId.value = characters.charactersList[0]?.id || null
+    // If the deleted character was selected, select another one or clear selection
+    if (ui.selectedCharacterId === characterId) {
+      const remainingCharacters = characters.charactersList
+      if (remainingCharacters.length > 0) {
+        ui.selectCharacter(remainingCharacters[0].id)
+      } else {
+        ui.selectCharacter(undefined)
+      }
     }
   }
 }
@@ -999,11 +1005,11 @@ const deadCharacters = computed(() =>
 )
 
 function backToList() {
-  localSelectedCharacterId.value = null
+  ui.selectCharacter(undefined)
 }
 
 // Scroll to top when character selection changes
-watch(localSelectedCharacterId, async (newId) => {
+watch(() => ui.selectedCharacterId, async (newId) => {
   if (newId && characterDetailRef.value) {
     await nextTick()
     characterDetailRef.value.scrollTop = 0
@@ -1029,7 +1035,7 @@ async function createCharacter() {
       MBTI: 'ENFP',
       currentEmotion: 'content'
     })
-    localSelectedCharacterId.value = newChar.id
+    ui.selectCharacter(newChar.id)
   } catch (error) {
     console.error('Failed to create character:', error)
     alert('Failed to create character. Please try again.')

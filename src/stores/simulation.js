@@ -257,15 +257,46 @@ export const useSimulationStore = defineStore('simulation', () => {
     }
     conversations.value.push(newConversation)
     
-    // Debug logging
-    console.log('💬 Added conversation to simulation store:', {
+    // Enhanced debug logging
+    console.log('💬 CONVERSATION CREATION DEBUG:', {
+      action: 'addConversation',
       id: conversationId,
       participants: participants,
-      totalConversations: conversations.value.length,
-      activeConversations: conversations.value.filter(c => c.isActive).length
+      participantCount: participants.length,
+      totalConversationsAfterAdd: conversations.value.length,
+      activeConversationsAfterAdd: conversations.value.filter(c => c.isActive).length,
+      conversationObject: newConversation,
+      allConversationIds: conversations.value.map(c => c.id)
     })
     
+    // Check if conversation was actually added
+    const addedConversation = conversations.value.find(c => c.id === conversationId)
+    if (addedConversation) {
+      console.log('✅ CONVERSATION SUCCESSFULLY ADDED TO STORE')
+    } else {
+      console.error('❌ CONVERSATION NOT FOUND IN STORE AFTER ADDING!')
+    }
+    
     saveToLocalStorage()
+    
+    // Verify localStorage save
+    const savedData = localStorage.getItem('meadowloop-simulation')
+    if (savedData) {
+      try {
+        const parsed = JSON.parse(savedData)
+        const savedConversations = parsed.conversations || []
+        console.log('💾 LOCALSTORAGE SAVE VERIFICATION:', {
+          savedConversationsCount: savedConversations.length,
+          newConversationSaved: savedConversations.some(c => c.id === conversationId),
+          localStorageSize: Math.round(savedData.length / 1024) + 'KB'
+        })
+      } catch (error) {
+        console.error('❌ LOCALSTORAGE PARSE ERROR:', error)
+      }
+    } else {
+      console.error('❌ NO LOCALSTORAGE DATA FOUND AFTER SAVE!')
+    }
+    
     return conversationId
   }
 
@@ -279,17 +310,35 @@ export const useSimulationStore = defineStore('simulation', () => {
       }
       conversation.messages.push(newMessage)
       
-      // Debug logging
-      console.log('📨 Added message to conversation:', {
+      // Enhanced debug logging
+      console.log('📨 MESSAGE CREATION DEBUG:', {
+        action: 'addMessage',
         conversationId,
+        messageId: newMessage.id,
         speakerId: message.speakerId,
-        messageContent: message.content?.substring(0, 50) + '...',
-        totalMessages: conversation.messages.length
+        messageContent: message.content?.substring(0, 100) + '...',
+        totalMessagesInConversation: conversation.messages.length,
+        conversationParticipants: conversation.participants,
+        isConversationActive: conversation.isActive
       })
       
       saveToLocalStorage()
+      
+      // Verify the message was added
+      const updatedConversation = conversations.value.find(c => c.id === conversationId)
+      if (updatedConversation && updatedConversation.messages.find(m => m.id === newMessage.id)) {
+        console.log('✅ MESSAGE SUCCESSFULLY ADDED TO CONVERSATION')
+      } else {
+        console.error('❌ MESSAGE NOT FOUND IN CONVERSATION AFTER ADDING!')
+      }
     } else {
-      console.error('❌ Could not find conversation to add message to:', conversationId)
+      console.error('❌ CONVERSATION CREATION ERROR:', {
+        action: 'addMessage - conversation not found',
+        conversationId,
+        availableConversationIds: conversations.value.map(c => c.id),
+        totalConversations: conversations.value.length,
+        searchedFor: conversationId
+      })
     }
   }
 
@@ -318,7 +367,8 @@ export const useSimulationStore = defineStore('simulation', () => {
       target,
       content,
       timestamp: Date.now(),
-      processed: false
+      processed: false,
+      processedBy: []
     }
     injections.value.push(injection)
     console.log('💫 Added injection to store:', injection)
@@ -442,6 +492,64 @@ export const useSimulationStore = defineStore('simulation', () => {
     await loadSimulationData()
   }
 
+  // Enhanced conversation management
+  function cleanupOldConversations() {
+    const cutoffTime = Date.now() - (180000) // Extended to 3 minutes for more natural conversation flow
+    
+    const beforeCount = conversations.value.length
+    const activeBeforeCount = conversations.value.filter(c => c.isActive).length
+    
+    conversations.value.forEach(conversation => {
+      const lastMessageTime = conversation.messages.length > 0 
+        ? conversation.messages[conversation.messages.length - 1].timestamp 
+        : conversation.startTime
+      
+      // More sophisticated cleanup logic
+      if (lastMessageTime < cutoffTime) {
+        // Check if conversation had meaningful interaction (more than 2 messages)
+        const messageCount = conversation.messages.length
+        
+        if (messageCount <= 1) {
+          // Single message conversations can timeout faster (1 minute)
+          const singleMessageCutoff = Date.now() - 60000
+          if (lastMessageTime < singleMessageCutoff) {
+            conversation.isActive = false
+            console.log(`💬 Single-message conversation ${conversation.id} timed out after 1 minute`)
+          }
+        } else {
+          // Multi-message conversations get full 3-minute timeout
+          conversation.isActive = false
+          console.log(`💬 Conversation ${conversation.id} completed after ${messageCount} messages (3 min timeout)`)
+        }
+      }
+    })
+    
+    // Remove inactive conversations older than 10 minutes to keep data clean
+    const archiveCutoff = Date.now() - (600000) // 10 minutes
+    const initialLength = conversations.value.length
+    conversations.value = conversations.value.filter(conversation => {
+      if (!conversation.isActive) {
+        const lastMessageTime = conversation.messages.length > 0 
+          ? conversation.messages[conversation.messages.length - 1].timestamp 
+          : conversation.startTime
+        
+        if (lastMessageTime < archiveCutoff) {
+          console.log(`🗄️ Archiving old conversation ${conversation.id} with ${conversation.messages.length} messages`)
+          return false // Remove from active list
+        }
+      }
+      return true
+    })
+    
+    const afterCount = conversations.value.length
+    const activeAfterCount = conversations.value.filter(c => c.isActive).length
+    
+    if (beforeCount !== afterCount || activeBeforeCount !== activeAfterCount) {
+      console.log(`🧹 Conversation cleanup: ${beforeCount}→${afterCount} total, ${activeBeforeCount}→${activeAfterCount} active`)
+      saveToLocalStorage()
+    }
+  }
+
   return {
     // State
     events,
@@ -479,6 +587,9 @@ export const useSimulationStore = defineStore('simulation', () => {
     // Environment actions
     updateEnvironment,
     setWeather,
-    getEnvironmentDescription
+    getEnvironmentDescription,
+
+    // Enhanced conversation management
+    cleanupOldConversations
   }
 }) 

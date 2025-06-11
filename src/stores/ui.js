@@ -94,46 +94,51 @@ export const useUIStore = defineStore('ui', () => {
   }
 
   function setClaudeApiKey(key) {
-    // Check if environment variable is set first
-    const envApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
-    if (envApiKey && envApiKey.trim()) {
-      console.log('🔑 Environment API key detected, using that instead of UI input')
-      claudeApiKey.value = envApiKey.trim()
-      claudeApi.setApiKey(envApiKey.trim())
-      claudeKeyStatus.value = 'env'
+    // Basic validation for Claude API key format
+    if (key && typeof key === 'string' && key.trim()) {
+      const cleanKey = key.trim()
+      
+      // Claude API keys typically start with 'sk-ant-'
+      if (!cleanKey.startsWith('sk-ant-')) {
+        console.warn('⚠️ Claude API key should start with sk-ant-')
+        return false
+      }
+      
+      // Check minimum length (Claude keys are usually quite long)
+      if (cleanKey.length < 20) {
+        console.warn('⚠️ Claude API key appears to be too short')
+        return false
+      }
+      
+      state.claudeApiKey = cleanKey
+      console.log('✅ Claude API key updated in UI store')
+      
+      // Also set the key in the Claude API service
+      import('@/services/claudeApi').then(({ default: claudeApi }) => {
+        claudeApi.setApiKey(cleanKey)
+        console.log('🔑 Claude API key also set in service')
+      }).catch(error => {
+        console.warn('Could not update Claude service key:', error)
+      })
+      
+      saveToLocalStorage()
+      return true
+    } else {
+      // Clear the key
+      state.claudeApiKey = ''
+      console.log('🗑️ Claude API key cleared')
+      
+      // Also clear the key in the Claude API service
+      import('@/services/claudeApi').then(({ default: claudeApi }) => {
+        claudeApi.setApiKey('')
+        console.log('🗑️ Claude API key also cleared in service')
+      }).catch(error => {
+        console.warn('Could not clear Claude service key:', error)
+      })
+      
       saveToLocalStorage()
       return true
     }
-
-    if (!key || typeof key !== 'string' || !key.trim()) {
-      console.error('❌ Invalid Claude API key provided')
-      claudeApiKey.value = undefined
-      claudeKeyStatus.value = 'none'
-      claudeApi.setApiKey(null) // Clear the API key in service
-      saveToLocalStorage()
-      return false
-    }
-
-    const trimmedKey = key.trim()
-    if (!trimmedKey.startsWith('sk-ant-')) {
-      console.error('❌ Invalid Claude API key format - must start with sk-ant-')
-      claudeApiKey.value = undefined
-      claudeKeyStatus.value = 'none'
-      claudeApi.setApiKey(null) // Clear the API key in service
-      saveToLocalStorage()
-      return false
-    }
-
-    claudeApiKey.value = trimmedKey
-    console.log('🔑 Claude API key updated:', trimmedKey.substring(0, 10) + '...')
-    
-    // Update the API service
-    claudeApi.setApiKey(trimmedKey)
-    
-    // Save to localStorage
-    claudeKeyStatus.value = 'user'
-    saveToLocalStorage()
-    return true
   }
 
   function setOpenaiApiKey(key) {

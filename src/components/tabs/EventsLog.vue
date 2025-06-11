@@ -8,11 +8,13 @@
             <label>Type:</label>
             <select v-model="filterType" class="filter-select">
               <option value="">All</option>
-              <option value="conversation">Talk</option>
-              <option value="movement">Move</option>
-              <option value="action">Action</option>
-              <option value="thought">Think</option>
-              <option value="injection">Scenario</option>
+              <option value="conversation">💬 Talk</option>
+              <option value="movement">🚶 Move</option>
+              <option value="action">⚡ Action</option>
+              <option value="thought">💭 Think</option>
+              <option value="injection">💫 Scenario</option>
+              <option value="death">💀 Death</option>
+              <option value="resurrection">✨ Resurrection</option>
             </select>
           </div>
           <div class="filter-group">
@@ -85,8 +87,17 @@
               <span class="event-time">{{ formatTime(event.timestamp) }}</span>
             </div>
             <div v-if="event.details" class="event-details">
-              <div v-if="event.details.injection_id" class="injection-indicator">
-                <strong>📝 Scenario Event:</strong> {{ event.details.description || 'Custom injection triggered' }}
+              <div v-if="event.details.injection_id || event.details.is_scenario_event" class="injection-indicator">
+                <strong>💫 Scenario Event:</strong> 
+                <span v-if="event.details.injection_content">{{ event.details.injection_content }}</span>
+                <span v-else-if="event.details.description">{{ event.details.description }}</span>
+                <span v-else>Custom injection triggered</span>
+                <div v-if="event.details.injection_target" class="scenario-target">
+                  Target: <em>{{ event.details.injection_target === 'global' ? '🌍 All Characters' : event.details.injection_target }}</em>
+                </div>
+              </div>
+              <div v-if="event.details.major_event" class="major-event-indicator">
+                <strong>🌟 Major Event:</strong> This event affects the entire town
               </div>
               <div v-if="event.details.participantCount" class="participant-count">
                 👥 {{ event.details.participantCount }} participant{{ event.details.participantCount === 1 ? '' : 's' }}
@@ -154,7 +165,11 @@ const filteredEvents = computed(() => {
     events = events.filter(event => {
       // Handle special "injection" filter type for scenario events
       if (filterType.value === 'injection') {
-        return event.details?.injection_id
+        // ✅ IMPROVED SCENARIO EVENT DETECTION - Multiple ways to identify scenario events
+        return event.details?.injection_id || 
+               event.details?.is_scenario_event || 
+               event.type === 'injection' ||
+               (event.details?.injection_content || event.details?.injection_target)
       }
       return event.type === filterType.value
     })
@@ -179,7 +194,9 @@ function getEventIcon(type) {
     movement: '🚶',
     action: '⚡',
     thought: '💭',
-    injection: '💫'
+    injection: '💫',
+    death: '💀',
+    resurrection: '✨'
   }
   return icons[type] || '📝'
 }
@@ -708,16 +725,44 @@ onUnmounted(() => {
 }
 
 .injection-indicator {
-  background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
-  border: 1px solid #ffb74d;
-  border-radius: 6px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
   padding: 8px 12px;
-  margin-top: 8px;
-  color: #e65100;
+  border-radius: 6px;
+  font-size: 13px;
+  margin-bottom: 8px;
+  border-left: 4px solid #4c63d2;
 }
 
 .injection-indicator strong {
-  color: #e65100;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.scenario-target {
+  font-size: 12px;
+  margin-top: 4px;
+  opacity: 0.9;
+}
+
+.major-event-indicator {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  margin-bottom: 8px;
+  border-left: 4px solid #e91e63;
+}
+
+.event-type-death {
+  border-left-color: #8b0000;
+  background: linear-gradient(135deg, #fff 0%, #ffebee 100%);
+}
+
+.event-type-resurrection {
+  border-left-color: #ffd700;
+  background: linear-gradient(135deg, #fff 0%, #fffef7 100%);
 }
 
 .participant-count {

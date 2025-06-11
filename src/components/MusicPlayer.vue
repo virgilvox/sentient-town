@@ -45,8 +45,8 @@
           </option>
         </select>
         
-        <select v-model="currentTrackIndex" @change="changeTrack" class="track-selector">
-          <option v-for="(track, index) in filteredTracks" :key="index" :value="getTrackIndex(track)">
+        <select v-model="currentTrackId" @change="changeTrack" class="track-selector">
+          <option v-for="(track, index) in filteredTracks" :key="index" :value="track.id">
             {{ track.title }}
           </option>
         </select>
@@ -57,6 +57,14 @@
           <input type="checkbox" v-model="autoMode" @change="toggleAutoMode" />
           <span class="toggle-text">Auto</span>
         </label>
+        <button 
+          v-if="hasUserInteracted && autoMode" 
+          @click="resetAutoMode" 
+          class="reset-auto-button"
+          title="Reset auto mode - allow AI to select music again"
+        >
+          🔄
+        </button>
       </div>
     </div>
 
@@ -82,16 +90,22 @@ const audioPlayer = ref(null)
 const isPlaying = ref(false)
 const isMuted = ref(false)
 const volume = ref(0.3) // Start at lower volume
-const currentTrackIndex = ref(0)
+const currentTrackId = ref('sunny-village') // Use track ID instead of index
 const selectedCategory = ref('')
 const autoMode = ref(true)
 const autoModeInterval = ref(null)
 const isAutoChanging = ref(false)
 
-// Enhanced music tracks organized by categories and moods
+// NEW: User interaction tracking
+const hasUserInteracted = ref(false)
+const userHasPaused = ref(false)
+const hasInitialAutoplayAttempted = ref(false)
+
+// Enhanced music tracks organized by categories and moods - CORRECTED TO MATCH ACTUAL FILES
 const tracks = ref([
-  // Weather - Sunny/Clear
+  // Existing files that match the actual audio directory
   {
+    id: "sunny-village",
     title: "Sunny Village Theme",
     artist: "cynicmusic",
     url: "/audio/sunny-village.mp3",
@@ -100,50 +114,25 @@ const tracks = ref([
     weather: ["clear", "sunny"]
   },
   {
-    title: "Bright Morning",
+    id: "ambience",
+    title: "Peaceful Village",
     artist: "Pro Sensory",
-    url: "/audio/bright-morning.mp3",
-    category: "sunny",
-    mood: "content",
-    weather: ["clear", "sunny"]
-  },
-  {
-    title: "Golden Hour",
-    artist: "Ambient Studio",
-    url: "/audio/golden-hour.mp3",
-    category: "sunny",
+    url: "/audio/ambience.mp3",
+    category: "peaceful",
     mood: "peaceful",
-    weather: ["clear", "sunny"]
-  },
-
-  // Weather - Rainy
-  {
-    title: "Rain Drops",
-    artist: "Nature Sounds",
-    url: "/audio/rain-drops.mp3",
-    category: "rainy",
-    mood: "melancholy",
-    weather: ["rainy", "drizzle", "storm"]
+    weather: []
   },
   {
-    title: "Cozy Indoor",
-    artist: "Ambient Collective",
-    url: "/audio/cozy-indoor.mp3",
-    category: "rainy",
-    mood: "cozy",
-    weather: ["rainy", "drizzle"]
+    id: "calm-ambient",
+    title: "Gentle Calm",
+    artist: "Ambient Sounds",
+    url: "/audio/calm-ambient.mp3",
+    category: "peaceful",
+    mood: "calm",
+    weather: ["clear"]
   },
   {
-    title: "Storm Winds",
-    artist: "Epic Weather",
-    url: "/audio/storm-winds.mp3",
-    category: "rainy",
-    mood: "dramatic",
-    weather: ["storm", "thunderstorm"]
-  },
-
-  // Weather - Cloudy/Overcast
-  {
+    id: "cloudy-afternoon",
     title: "Cloudy Afternoon",
     artist: "Peaceful Moments",
     url: "/audio/cloudy-afternoon.mp3",
@@ -152,112 +141,7 @@ const tracks = ref([
     weather: ["cloudy", "overcast"]
   },
   {
-    title: "Gray Skies",
-    artist: "Atmospheric",
-    url: "/audio/gray-skies.mp3",
-    category: "cloudy",
-    mood: "neutral",
-    weather: ["cloudy", "overcast"]
-  },
-
-  // Weather - Snowy/Winter
-  {
-    title: "Winter Village",
-    artist: "Seasonal Sounds",
-    url: "/audio/winter-village.mp3",
-    category: "winter",
-    mood: "serene",
-    weather: ["snow", "cold", "winter"]
-  },
-  {
-    title: "Snowfall Quiet",
-    artist: "Winter Moods",
-    url: "/audio/snowfall-quiet.mp3",
-    category: "winter",
-    mood: "peaceful",
-    weather: ["snow", "cold"]
-  },
-
-  // Mood - Happy/Upbeat
-  {
-    title: "Festival Day",
-    artist: "Celebration Music",
-    url: "/audio/festival-day.mp3",
-    category: "happy",
-    mood: "joyful",
-    weather: []
-  },
-  {
-    title: "Market Bustle",
-    artist: "Town Life",
-    url: "/audio/market-bustle.mp3",
-    category: "happy",
-    mood: "energetic",
-    weather: []
-  },
-  {
-    title: "Community Gathering",
-    artist: "Social Harmony",
-    url: "/audio/community-gathering.mp3",
-    category: "happy",
-    mood: "warm",
-    weather: []
-  },
-
-  // Mood - Sad/Melancholic
-  {
-    title: "Lonely Streets",
-    artist: "Melancholy Tales",
-    url: "/audio/lonely-streets.mp3",
-    category: "sad",
-    mood: "lonely",
-    weather: []
-  },
-  {
-    title: "Memories Lost",
-    artist: "Emotional Depths",
-    url: "/audio/memories-lost.mp3",
-    category: "sad",
-    mood: "nostalgic",
-    weather: []
-  },
-  {
-    title: "Empty Town Square",
-    artist: "Sorrowful Sounds",
-    url: "/audio/empty-town-square.mp3",
-    category: "sad",
-    mood: "melancholy",
-    weather: []
-  },
-
-  // Mood - Peaceful/Calm
-  {
-    title: "Morning Meditation",
-    artist: "Zen Garden",
-    url: "/audio/morning-meditation.mp3",
-    category: "peaceful",
-    mood: "serene",
-    weather: []
-  },
-  {
-    title: "Gentle Breeze",
-    artist: "Nature's Calm",
-    url: "/audio/gentle-breeze.mp3",
-    category: "peaceful",
-    mood: "relaxed",
-    weather: []
-  },
-  {
-    title: "Garden Sanctuary",
-    artist: "Peaceful Places",
-    url: "/audio/garden-sanctuary.mp3",
-    category: "peaceful",
-    mood: "tranquil",
-    weather: []
-  },
-
-  // Time of Day - Morning
-  {
+    id: "dawn-chorus",
     title: "Dawn Chorus",
     artist: "Morning Sounds",
     url: "/audio/dawn-chorus.mp3",
@@ -266,24 +150,34 @@ const tracks = ref([
     weather: []
   },
   {
-    title: "Sunrise Over Town",
-    artist: "Day Break",
-    url: "/audio/sunrise-over-town.mp3",
-    category: "morning",
-    mood: "hopeful",
-    weather: []
-  },
-
-  // Time of Day - Evening/Night
-  {
-    title: "Twilight Hours",
-    artist: "Evening Moods",
-    url: "/audio/twilight-hours.mp3",
-    category: "evening",
-    mood: "calm",
+    id: "festival-day",
+    title: "Festival Day",
+    artist: "Celebration Music",
+    url: "/audio/festival-day.mp3",
+    category: "happy",
+    mood: "joyful",
     weather: []
   },
   {
+    id: "garden-sanctuary",
+    title: "Garden Sanctuary",
+    artist: "Nature's Peace",
+    url: "/audio/garden-sanctuary.mp3",
+    category: "peaceful",
+    mood: "serene",
+    weather: []
+  },
+  {
+    id: "lonely-street",
+    title: "Lonely Street",
+    artist: "Melancholy Moods",
+    url: "/audio/lonely-street.mp3",
+    category: "sad",
+    mood: "melancholy",
+    weather: []
+  },
+  {
+    id: "midnight-town",
     title: "Midnight Town",
     artist: "Night Sounds",
     url: "/audio/midnight-town.mp3",
@@ -292,34 +186,34 @@ const tracks = ref([
     weather: []
   },
   {
-    title: "Starlit Village",
-    artist: "Nocturne",
-    url: "/audio/starlit-village.mp3",
-    category: "night",
-    mood: "dreamy",
-    weather: []
+    id: "rain-drops",
+    title: "Rain Drops",
+    artist: "Nature Sounds",
+    url: "/audio/rain-drops.mp3",
+    category: "rainy",
+    mood: "melancholy",
+    weather: ["rainy", "drizzle", "storm"]
   },
-
-  // Dramatic/Tense
   {
+    id: "snowfall-quiet",
+    title: "Snowfall Quiet",
+    artist: "Winter Sounds",
+    url: "/audio/snowfall-quiet.mp3",
+    category: "winter",
+    mood: "serene",
+    weather: ["snow", "cold", "winter"]
+  },
+  {
+    id: "tension-rising",
     title: "Tension Rising",
-    artist: "Drama Music",
+    artist: "Dramatic Moods",
     url: "/audio/tension-rising.mp3",
     category: "dramatic",
     mood: "tense",
     weather: []
   },
   {
-    title: "Conflict Brewing",
-    artist: "Emotional Highs",
-    url: "/audio/conflict-brewing.mp3",
-    category: "dramatic",
-    mood: "anxious",
-    weather: []
-  },
-
-  // Original tracks (maintained for backwards compatibility)
-  {
+    id: "town-theme-rpg",
     title: "Town Theme RPG",
     artist: "cynicmusic",
     url: "/audio/town-theme-rpg.mp3",
@@ -328,19 +222,12 @@ const tracks = ref([
     weather: []
   },
   {
-    title: "Calm Ambient",
-    artist: "cynicmusic", 
-    url: "/audio/calm-ambient.mp3",
-    category: "peaceful",
+    id: "twilight-hours",
+    title: "Twilight Hours",
+    artist: "Evening Moods",
+    url: "/audio/twilight-hours.mp3",
+    category: "evening",
     mood: "calm",
-    weather: []
-  },
-  {
-    title: "Peaceful Village",
-    artist: "Pro Sensory",
-    url: "/audio/ambience.mp3",
-    category: "peaceful",
-    mood: "peaceful",
     weather: []
   }
 ])
@@ -356,7 +243,11 @@ const filteredTracks = computed(() => {
   return tracks.value.filter(track => track.category === selectedCategory.value)
 })
 
-const currentTrack = computed(() => tracks.value[currentTrackIndex.value] || tracks.value[0])
+// FIXED: Get current track by ID instead of index
+const currentTrack = computed(() => {
+  const track = tracks.value.find(t => t.id === currentTrackId.value)
+  return track || tracks.value[0]
+})
 
 function getCategoryDisplayName(category) {
   const displayNames = {
@@ -376,20 +267,21 @@ function getCategoryDisplayName(category) {
   return displayNames[category] || category
 }
 
-function getTrackIndex(track) {
-  return tracks.value.findIndex(t => t === track)
-}
-
 function togglePlayPause() {
+  // Mark that user has interacted with the player
+  hasUserInteracted.value = true
+  
   if (audioPlayer.value) {
     if (isPlaying.value) {
       audioPlayer.value.pause()
+      userHasPaused.value = true // Track that user explicitly paused
       // isPlaying will be set by the 'pause' event listener
     } else {
       audioPlayer.value.play().catch(error => {
         console.log('🎵 Play failed:', error.message)
         isPlaying.value = false
       })
+      userHasPaused.value = false // User is playing again
       // isPlaying will be set by the 'play' event listener
     }
   }
@@ -412,32 +304,63 @@ function updateVolume() {
   }
 }
 
+// FIXED: Simple track change function that directly sets the track
 function changeTrack() {
-  if (audioPlayer.value) {
-    const wasPlaying = isPlaying.value
-    if (wasPlaying) {
-      audioPlayer.value.pause()
-    }
+  hasUserInteracted.value = true
+  console.log(`🎵 User selected track: ${currentTrack.value.title}`)
+  loadTrack()
+}
+
+// FIXED: Centralized track loading function
+function loadTrack() {
+  if (!audioPlayer.value || !currentTrack.value) return
+  
+  const wasPlaying = isPlaying.value
+  
+  console.log(`🎵 Loading track: ${currentTrack.value.title}`)
+  
+  // Stop current audio completely
+  audioPlayer.value.pause()
+  audioPlayer.value.currentTime = 0
+  
+  // Force reload of the new source (Vue's reactivity will update the src)
+  setTimeout(() => {
+    audioPlayer.value.load()
     
-    // Small delay to allow audio to load
-    setTimeout(() => {
-      if (wasPlaying) {
-        audioPlayer.value.play()
+    // If music was playing before, start the new track after loading
+    if (wasPlaying && !userHasPaused.value) {
+      const playWhenReady = () => {
+        audioPlayer.value.play().catch(error => {
+          console.log('🎵 Play failed after track change:', error.message)
+          isPlaying.value = false
+        })
       }
-    }, 100)
-  }
+      
+      // Wait for track to be ready
+      audioPlayer.value.addEventListener('canplay', playWhenReady, { once: true })
+      
+      // Fallback timeout
+      setTimeout(() => {
+        if (!isPlaying.value && wasPlaying && !userHasPaused.value) {
+          playWhenReady()
+        }
+      }, 500)
+    }
+  }, 100)
 }
 
 function nextTrack() {
-  currentTrackIndex.value = (currentTrackIndex.value + 1) % tracks.value.length
-  changeTrack()
+  const currentIndex = tracks.value.findIndex(t => t.id === currentTrackId.value)
+  const nextIndex = (currentIndex + 1) % tracks.value.length
+  currentTrackId.value = tracks.value[nextIndex].id
+  loadTrack()
 }
 
 function onCategoryChange() {
   // When category changes, select the first track in that category
   if (filteredTracks.value.length > 0) {
-    currentTrackIndex.value = getTrackIndex(filteredTracks.value[0])
-    changeTrack()
+    currentTrackId.value = filteredTracks.value[0].id
+    loadTrack()
   }
 }
 
@@ -449,7 +372,6 @@ function onCanPlay() {
 }
 
 function onAudioLoaded() {
-  // This function is called when the audio is loaded and ready to play
   console.log('🎵 Audio loaded and ready to play')
 }
 
@@ -460,6 +382,13 @@ function toggleAutoMode() {
   } else {
     stopAutoMode()
   }
+}
+
+function resetAutoMode() {
+  // Reset user interaction flags to allow auto mode to work again
+  hasUserInteracted.value = false
+  userHasPaused.value = false
+  console.log('🎵 Auto mode reset - AI can now select music automatically')
 }
 
 function startAutoMode() {
@@ -490,6 +419,12 @@ function stopAutoMode() {
 
 function selectMusicBasedOnSimulation() {
   if (!autoMode.value || !simulation.state.isRunning) return
+  
+  // Don't override if user has manually interacted with music selection recently
+  if (hasUserInteracted.value) {
+    console.log('🎵 Skipping auto music selection - user has manually selected music')
+    return
+  }
   
   // Get current simulation state
   const environment = simulation.environment || {}
@@ -550,8 +485,10 @@ function selectMusicBasedOnSimulation() {
         isAutoChanging.value = false
       }, 2000) // Animation lasts 2 seconds
       
+      // Change track without marking as user interaction
       currentTrackIndex.value = newIndex
-      changeTrack()
+      
+      // The watch function will handle the actual audio loading
     }
   }
 }
@@ -598,16 +535,11 @@ function determineOverallMood(characters) {
   return emotionToMood[dominantEmotion] || 'neutral'
 }
 
-// Watch for track changes
-watch(currentTrackIndex, () => {
-  changeTrack()
-})
-
 // Initialize on mount
 onMounted(async () => {
   try {
     // Start with a default peaceful track
-    currentTrackIndex.value = 0
+    currentTrackId.value = 'sunny-village'
     
     // Wait for the component to be fully mounted, then start autoplay
     await nextTick()
@@ -631,42 +563,50 @@ onMounted(async () => {
         console.log('🎵 Audio ended - button state updated')
       })
       
-      // Set up event listener for when audio metadata is loaded
-      audioPlayer.value.addEventListener('loadedmetadata', async () => {
-        console.log('🎵 Audio metadata loaded, attempting autoplay...')
-        try {
-          await audioPlayer.value.play()
-          // isPlaying will be set by the 'play' event listener above
-          console.log('🎵 Music autoplay started successfully after metadata load')
-        } catch (error) {
-          console.log('🎵 Autoplay blocked by browser after metadata load, user can click play button')
-          isPlaying.value = false
-        }
-      })
-      
-      // Set up event listener for when audio can start playing
-      audioPlayer.value.addEventListener('canplay', async () => {
-        console.log('🎵 Audio can play, attempting autoplay...')
-        try {
-          await audioPlayer.value.play()
-          // isPlaying will be set by the 'play' event listener above
-          console.log('🎵 Music autoplay started successfully')
-        } catch (error) {
-          console.log('🎵 Autoplay blocked by browser, user can click play button')
-          isPlaying.value = false
-        }
-      }, { once: true })
-      
-      // Also try to play immediately if the audio is already ready
-      if (audioPlayer.value.readyState >= 3) { // HAVE_FUTURE_DATA or better
-        console.log('🎵 Audio already ready, attempting immediate autoplay...')
-        try {
-          await audioPlayer.value.play()
-          // isPlaying will be set by the 'play' event listener above
-          console.log('🎵 Music autoplay started immediately')
-        } catch (error) {
-          console.log('🎵 Autoplay blocked by browser, user can click play button')
-          isPlaying.value = false
+      // Only attempt autoplay once when the component mounts
+      if (!hasInitialAutoplayAttempted.value) {
+        hasInitialAutoplayAttempted.value = true
+        
+        // Set up event listener for when audio metadata is loaded
+        audioPlayer.value.addEventListener('loadedmetadata', async () => {
+          if (!hasUserInteracted.value && !userHasPaused.value) {
+            console.log('🎵 Audio metadata loaded, attempting initial autoplay...')
+            try {
+              await audioPlayer.value.play()
+              console.log('🎵 Initial autoplay started successfully after metadata load')
+            } catch (error) {
+              console.log('🎵 Initial autoplay blocked by browser, user can click play button')
+              isPlaying.value = false
+            }
+          }
+        })
+        
+        // Set up event listener for when audio can start playing
+        audioPlayer.value.addEventListener('canplay', async () => {
+          if (!hasUserInteracted.value && !userHasPaused.value) {
+            console.log('🎵 Audio can play, attempting initial autoplay...')
+            try {
+              await audioPlayer.value.play()
+              console.log('🎵 Initial autoplay started successfully')
+            } catch (error) {
+              console.log('🎵 Initial autoplay blocked by browser, user can click play button')
+              isPlaying.value = false
+            }
+          }
+        }, { once: true })
+        
+        // Also try to play immediately if the audio is already ready
+        if (audioPlayer.value.readyState >= 3) { // HAVE_FUTURE_DATA or better
+          if (!hasUserInteracted.value && !userHasPaused.value) {
+            console.log('🎵 Audio already ready, attempting immediate initial autoplay...')
+            try {
+              await audioPlayer.value.play()
+              console.log('🎵 Initial autoplay started immediately')
+            } catch (error) {
+              console.log('🎵 Initial autoplay blocked by browser, user can click play button')
+              isPlaying.value = false
+            }
+          }
         }
       }
       
@@ -704,6 +644,26 @@ async function startMusic() {
     }
   }
 }
+
+// Listen for autoplay events when user is not interacting
+watch(autoMode, (newVal) => {
+  clearInterval(autoModeInterval.value)
+  
+  if (newVal) {
+    // Start auto mode with 3-4 minute intervals
+    autoModeInterval.value = setInterval(() => {
+      if (!hasUserInteracted.value || (!isPlaying.value && !userHasPaused.value)) {
+        console.log('🎵 Auto-changing track...')
+        isAutoChanging.value = true
+        nextTrack()
+        
+        setTimeout(() => {
+          isAutoChanging.value = false
+        }, 1000)
+      }
+    }, 180000 + Math.random() * 60000) // 3-4 minutes
+  }
+})
 </script>
 
 <style scoped>
@@ -878,6 +838,20 @@ async function startMusic() {
 
 .toggle-text {
   user-select: none;
+}
+
+.reset-auto-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.reset-auto-button:hover {
+  opacity: 1;
 }
 
 /* Responsive design */

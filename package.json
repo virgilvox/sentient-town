@@ -1,6 +1,6 @@
 {
   "name": "meadowloop",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,11 +8,16 @@
     "preview": "vite preview",
     "build-only": "vite build",
     "lint": "eslint . --fix",
-    "format": "prettier --write src/"
+    "format": "prettier --write src/",
+    "generate-assets": "node scripts/generateAssets.js",
+    "generate-map": "node scripts/generateAssets.js --map-only",
+    "optimize-audio": "node scripts/optimizeAudio.js",
+    "compress-audio": "node scripts/compressAudio.js"
   },
   "dependencies": {
     "canvas": "^3.1.0",
     "dotenv": "^16.5.0",
+    "node-fetch": "^3.3.2",
     "pinia": "^3.0.1",
     "vue": "^3.5.13"
   },

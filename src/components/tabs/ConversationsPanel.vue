@@ -24,15 +24,17 @@
             </option>
           </select>
         </div>
-        <button @click="debugConversations" class="debug-button" title="Log conversations to console">
-          🔍 Debug
-        </button>
-        <button @click="createTestConversation" class="test-button" title="Create test conversation">
-          🧪 Test
-        </button>
-        <button @click="groupCharactersTogether" class="group-button" title="Move all characters to same zone">
-          🏠 Group
-        </button>
+        <div class="action-buttons">
+          <button @click="debugConversations" class="debug-button" title="Debug conversation state">
+            🐛 Debug
+          </button>
+          <button @click="createTestConversation" class="test-button" title="Create test conversation">
+            🧪 Test
+          </button>
+          <button @click="groupCharactersTogether" class="group-button" title="Move all characters to same zone">
+            🏠 Group
+          </button>
+        </div>
       </div>
     </div>
 
@@ -264,9 +266,110 @@ function closeModal() {
 }
 
 function debugConversations() {
-  console.log('All conversations:', simulation.conversations)
-  console.log('Active conversations:', simulation.activeConversations)
-  console.log('Simulation store state:', simulation.$state)
+  console.log('=== COMPREHENSIVE CONVERSATION DEBUG ===')
+  console.log('1. SIMULATION STORE STATE:')
+  console.log('   All conversations:', simulation.conversations)
+  console.log('   Active conversations:', simulation.activeConversations)
+  console.log('   Conversation count:', simulation.conversations.length)
+  console.log('   Active conversation count:', simulation.activeConversations.length)
+  
+  console.log('2. RAW CONVERSATION DATA:')
+  console.log('   Conversations array:', simulation.conversations.map(c => ({
+    id: c.id,
+    participants: c.participants,
+    participantCount: c.participants.length,
+    messageCount: c.messages.length,
+    isActive: c.isActive,
+    startTime: new Date(c.startTime).toLocaleString(),
+    endTime: c.endTime ? new Date(c.endTime).toLocaleString() : 'N/A',
+    messages: c.messages.map(m => ({
+      id: m.id,
+      speakerId: m.speakerId,
+      content: m.content.substring(0, 50) + '...',
+      timestamp: new Date(m.timestamp).toLocaleString()
+    }))
+  })))
+  
+  console.log('3. CHARACTERS STATE:')
+  console.log('   Characters loaded:', characters.isLoaded)
+  console.log('   Character list:', characters.charactersList.map(c => ({ 
+    id: c.id, 
+    name: c.name,
+    position: c.position,
+    isDead: c.isDead 
+  })))
+  console.log('   Total characters:', characters.charactersList.length)
+  
+  console.log('4. FILTER STATE:')
+  console.log('   Status filter:', statusFilter.value)
+  console.log('   Character filter:', characterFilter.value)
+  console.log('   Filtered conversations result:', filteredConversations.value.length)
+  
+  console.log('5. COMPUTED PROPERTIES:')
+  console.log('   filteredConversations.value:', filteredConversations.value)
+  console.log('   displayedConversations.value:', displayedConversations.value)
+  
+  console.log('6. LOCALSTORAGE STATE:')
+  const saved = localStorage.getItem('meadowloop-simulation')
+  if (saved) {
+    try {
+      const data = JSON.parse(saved)
+      console.log('   LocalStorage conversations:', data.conversations?.length || 0)
+      console.log('   LocalStorage events:', data.events?.length || 0)
+      console.log('   LocalStorage data size:', Math.round(saved.length / 1024) + 'KB')
+      console.log('   LocalStorage conversation details:', data.conversations?.map(c => ({
+        id: c.id,
+        participants: c.participants,
+        messageCount: c.messages?.length || 0,
+        isActive: c.isActive
+      })))
+    } catch (e) {
+      console.log('   LocalStorage parse error:', e)
+    }
+  } else {
+    console.log('   No LocalStorage data found')
+  }
+  
+  console.log('7. RECENT EVENTS CHECK:')
+  const recentEvents = simulation.recentEvents || simulation.events || []
+  const talkEvents = recentEvents.filter(e => e.type === 'conversation' || e.summary?.includes('talk') || e.summary?.includes(':'))
+  console.log('   Total events:', recentEvents.length)
+  console.log('   Talk/conversation events:', talkEvents.length)
+  console.log('   Recent talk events:', talkEvents.slice(-5).map(e => ({
+    type: e.type,
+    summary: e.summary,
+    details: e.details,
+    timestamp: new Date(e.timestamp).toLocaleString()
+  })))
+  
+  console.log('8. SIMULATION ENGINE STATE:')
+  console.log('   Simulation running:', simulation.state?.isRunning)
+  console.log('   Current tick:', simulation.state?.currentTick)
+  console.log('   Last update:', simulation.state?.lastUpdateTime ? new Date(simulation.state.lastUpdateTime).toLocaleString() : 'N/A')
+  
+  console.log('9. DEBUGGING RECOMMENDATIONS:')
+  if (simulation.conversations.length === 0) {
+    console.log('   🔍 NO CONVERSATIONS FOUND - Possible issues:')
+    console.log('      - Characters may not be speaking during simulation')
+    console.log('      - Speech processing may have errors')
+    console.log('      - Conversation creation may be failing')
+    console.log('      - LocalStorage may be getting cleared')
+  }
+  
+  if (talkEvents.length > 0 && simulation.conversations.length === 0) {
+    console.log('   🚨 CRITICAL: Talk events exist but no conversations!')
+    console.log('      - This suggests conversation creation is failing')
+    console.log('      - Check processSpeech method in simulation engine')
+    console.log('      - Check addConversation method in simulation store')
+  }
+  
+  if (simulation.conversations.length > 0 && filteredConversations.value.length === 0) {
+    console.log('   🔍 CONVERSATIONS EXIST BUT FILTERED OUT:')
+    console.log('      - Check filter logic in computed property')
+    console.log('      - Check character name matching')
+    console.log('      - Check status filter logic')
+  }
+  
 }
 
 function createTestConversation() {
@@ -274,32 +377,74 @@ function createTestConversation() {
     const char1 = characters.charactersList[0]
     const char2 = characters.charactersList[1]
     
-    console.log('Creating test conversation between:', char1.name, 'and', char2.name)
+    console.log('🧪 STARTING MANUAL CONVERSATION TEST')
+    console.log('   Testing between:', char1.name, 'and', char2.name)
+    console.log('   Before test - conversation count:', simulation.conversations.length)
     
     try {
+      console.log('   Step 1: Creating conversation...')
       const conversationId = simulation.addConversation([char1.id, char2.id])
+      console.log('   Step 1 result - conversation ID:', conversationId)
+      console.log('   Step 1 result - conversation count after creation:', simulation.conversations.length)
       
+      console.log('   Step 2: Adding first message...')
       simulation.addMessage(conversationId, {
         speakerId: char1.id,
-        content: `Hello ${char2.name}! This is a test message.`,
+        content: `Hello ${char2.name}! This is a test message to verify conversation functionality.`,
         emotion: 'friendly'
       })
+      console.log('   Step 2 complete - added message from', char1.name)
       
+      console.log('   Step 3: Adding second message...')
       simulation.addMessage(conversationId, {
         speakerId: char2.id,
-        content: `Hi ${char1.name}! Great to talk to you.`,
+        content: `Hi ${char1.name}! Great to talk to you. This conversation system test is working!`,
         emotion: 'happy'
       })
+      console.log('   Step 3 complete - added message from', char2.name)
       
-      console.log('Test conversation created with ID:', conversationId)
-      alert(`Test conversation created between ${char1.name} and ${char2.name}!`)
+      console.log('   Step 4: Verifying conversation state...')
+      const createdConversation = simulation.conversations.find(c => c.id === conversationId)
+      if (createdConversation) {
+        console.log('   ✅ CONVERSATION SUCCESSFULLY CREATED:', {
+          id: createdConversation.id,
+          participants: createdConversation.participants,
+          messageCount: createdConversation.messages.length,
+          isActive: createdConversation.isActive,
+          messages: createdConversation.messages.map(m => ({
+            speaker: characters.getCharacter(m.speakerId)?.name,
+            content: m.content.substring(0, 50) + '...'
+          }))
+        })
+        
+        console.log('   Step 5: Checking localStorage persistence...')
+        const saved = localStorage.getItem('meadowloop-simulation')
+        if (saved) {
+          const data = JSON.parse(saved)
+          const savedConversation = data.conversations?.find(c => c.id === conversationId)
+          if (savedConversation) {
+            console.log('   ✅ CONVERSATION SUCCESSFULLY SAVED TO LOCALSTORAGE')
+          } else {
+            console.error('   ❌ CONVERSATION NOT FOUND IN LOCALSTORAGE')
+          }
+        }
+        
+        console.log('🧪 MANUAL TEST COMPLETED SUCCESSFULLY!')
+        alert(`✅ Test conversation created successfully!\n\nConversation ID: ${conversationId}\nParticipants: ${char1.name} and ${char2.name}\nMessages: ${createdConversation.messages.length}\n\nCheck the console for detailed logs and refresh the conversation list.`)
+        
+      } else {
+        console.error('   ❌ CONVERSATION NOT FOUND AFTER CREATION!')
+        alert('❌ Test failed: Conversation was not found after creation. Check console for details.')
+      }
       
     } catch (error) {
-      console.error('Failed to create test conversation:', error)
-      alert('Failed to create test conversation. Check console for details.')
+      console.error('🧪 MANUAL TEST FAILED:', error)
+      console.error('   Error stack:', error.stack)
+      alert(`❌ Test conversation creation failed!\n\nError: ${error.message}\n\nCheck console for full details.`)
     }
   } else {
-    alert('Need at least 2 characters to create a test conversation')
+    console.log('🧪 Cannot run test - need at least 2 characters')
+    alert('❌ Cannot run test: Need at least 2 characters to create a test conversation')
   }
 }
 
@@ -462,6 +607,37 @@ function getPreviewText(conversation) {
   border-radius: 4px;
   font-size: 14px;
   background: white;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.debug-button, .test-button, .group-button {
+  padding: 6px 12px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 14px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.debug-button:hover {
+  background: #e9ecef;
+  border-color: #adb5bd;
+}
+
+.test-button:hover {
+  background: #e7f3ff;
+  border-color: #667eea;
+}
+
+.group-button:hover {
+  background: #f0f9ff;
+  border-color: #22c55e;
 }
 
 .conversations-content {
@@ -749,32 +925,5 @@ function getPreviewText(conversation) {
 .message-tone {
   font-size: 11px;
   color: #6c757d;
-}
-
-.debug-button,
-.test-button,
-.group-button {
-  padding: 6px 12px;
-  border: 1px solid #ced4da;
-  border-radius: 4px;
-  font-size: 14px;
-  background: #f8f9fa;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.debug-button:hover {
-  background: #e9ecef;
-  border-color: #6f42c1;
-}
-
-.test-button:hover {
-  background: #e9ecef;
-  border-color: #28a745;
-}
-
-.group-button:hover {
-  background: #e9ecef;
-  border-color: #007bff;
 }
 </style> 

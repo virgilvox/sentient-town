@@ -239,7 +239,139 @@ export const useCharactersStore = defineStore('characters', () => {
   }
 
   function moveCharacter(id, position) {
-    updateCharacter(id, { position })
+    const character = characters.value[id]
+    if (character) {
+      const oldPosition = { ...character.position }
+      character.position = { ...position }
+      
+      // ENHANCED: Track manual movements
+      // Check if this is a significant movement (not just small AI movements)
+      const oldX = oldPosition.x || 0
+      const oldY = oldPosition.y || 0
+      const newX = position.x || 0
+      const newY = position.y || 0
+      const distance = Math.sqrt((newX - oldX) ** 2 + (newY - oldY) ** 2)
+      
+      // If movement is significant (>2 tiles), likely manual - create tracking events
+      if (distance > 2) {
+        // FIXED: Get human-readable zone names instead of raw IDs
+        const oldZoneName = getHumanReadableZoneName(oldPosition.zone, oldX, oldY)
+        const newZoneName = getHumanReadableZoneName(position.zone, newX, newY)
+        const zoneChanged = oldZoneName !== newZoneName
+        
+        // Add movement memory to character
+        const movementReason = zoneChanged ? 
+          `Moved from ${oldZoneName} to ${newZoneName}` : 
+          `Relocated within ${newZoneName}`
+          
+        const movementMemory = {
+          id: `movement_${id}_${Date.now()}`,
+          timestamp: Date.now(),
+          content: `I ${movementReason} from (${oldX}, ${oldY}) to (${newX}, ${newY}). ${zoneChanged ? 'This is a new environment for me.' : 'I\'ve moved to a different area.'}`,
+          emotional_weight: zoneChanged ? 45 : 25,
+          tags: ['movement', 'location_change', zoneChanged ? 'zone_change' : 'relocation']
+        }
+        
+        character.memories.push(movementMemory)
+        
+        // Create simulation event for significant movements
+        try {
+          // Dynamic import to avoid circular dependencies
+          import('./simulation.js').then(({ useSimulationStore }) => {
+            const simulationStore = useSimulationStore()
+            
+            if (simulationStore && typeof simulationStore.addEvent === 'function') {
+              const movementEvent = {
+                type: 'movement',
+                involvedCharacters: [id],
+                summary: `${character.name} ${movementReason.toLowerCase()}`,
+                tone: zoneChanged ? 'exploratory' : 'casual',
+                details: {
+                  character_name: character.name,
+                  movement_type: distance > 5 ? 'teleportation' : 'relocation',
+                  old_position: `${oldX}, ${oldY}`,
+                  new_position: `${newX}, ${newY}`,
+                  old_zone: oldZoneName,
+                  new_zone: newZoneName,
+                  zone_changed: zoneChanged,
+                  distance_moved: Math.round(distance * 10) / 10,
+                  manual_movement: true
+                }
+              }
+              
+              simulationStore.addEvent(movementEvent)
+              console.log(`📍 Created movement event for ${character.name}: ${oldZoneName} → ${newZoneName}`)
+            }
+          }).catch(error => {
+            console.warn('Could not create movement event - simulation store not available:', error)
+          })
+        } catch (error) {
+          console.warn('Could not create movement event - simulation store not available:', error)
+        }
+        
+        console.log(`📍 ${character.name} moved significantly: (${oldX}, ${oldY}) → (${newX}, ${newY}) [${Math.round(distance * 10) / 10} tiles]`)
+      }
+      
+      saveCharacterChanges()
+    }
+  }
+
+  // ADDED: Helper function to convert zone IDs to human-readable names
+  function getHumanReadableZoneName(zoneId, x, y) {
+    // Try to get zone store to look up actual zone names
+    try {
+      const { useZonesStore } = require('./zones.js')
+      const zonesStore = useZonesStore()
+      
+      if (zonesStore && zonesStore.zones) {
+        const zone = zonesStore.zones.find(z => z.id === zoneId)
+        if (zone && zone.name) {
+          return zone.name
+        }
+      }
+    } catch (error) {
+      // Ignore import errors - zones store might not be available
+    }
+    
+    // If zone ID is auto-generated (contains timestamps/numbers) or not found, create readable description
+    if (!zoneId || zoneId === 'Unknown' || zoneId.includes('_') || /\d{10,}/.test(zoneId)) {
+      // Create location description based on coordinates
+      return getLocationDescription(x, y)
+    }
+    
+    // If it's a short, meaningful ID, use it as-is
+    return zoneId
+  }
+
+  // ADDED: Helper function to generate readable location descriptions from coordinates
+  function getLocationDescription(x, y) {
+    // Map coordinates to general areas (assuming 50x37 map)
+    const mapWidth = 50
+    const mapHeight = 37
+    
+    // Determine general compass direction
+    let location = ''
+    
+    // North/South
+    if (y < mapHeight * 0.25) {
+      location += 'northern '
+    } else if (y > mapHeight * 0.75) {
+      location += 'southern '
+    } else {
+      location += 'central '
+    }
+    
+    // East/West
+    if (x < mapWidth * 0.25) {
+      location += 'western area'
+    } else if (x > mapWidth * 0.75) {
+      location += 'eastern area'
+    } else {
+      location += 'area'
+    }
+    
+    // Add specific coordinate hint for precision
+    return `${location} (${x}, ${y})`
   }
 
   function updateCharacterEmotion(id, emotion) {
@@ -495,7 +627,7 @@ export const useCharactersStore = defineStore('characters', () => {
       character.deathTimestamp = Date.now()
       character.currentEmotion = 'dead'
       
-      // Add death memory
+      // Add death memory to the dying character
       const deathMemory = {
         id: `${characterId}_death_${Date.now()}`,
         timestamp: Date.now(),
@@ -505,8 +637,86 @@ export const useCharactersStore = defineStore('characters', () => {
       }
       character.memories.push(deathMemory)
       
+      // ENHANCED: Make other characters aware of the death
+      const characterName = character.name
+      
+      // Create simulation event for the death
+      const deathEvent = {
+        type: 'death',
+        timestamp: Date.now(),
+        involvedCharacters: [characterId],
+        summary: `${characterName} has died: ${causeOfDeath}`,
+        tone: 'tragic',
+        details: {
+          character_name: characterName,
+          cause_of_death: causeOfDeath,
+          major_event: true,
+          death_timestamp: Date.now(),
+          location: character.position ? `${character.position.x}, ${character.position.y}` : 'Unknown',
+          zone: character.position?.zone || 'Unknown'
+        }
+      }
+      
+      // Add the death event to simulation (if simulation store is available)
+      try {
+        const simulationStore = useSimulationStore?.()
+        if (simulationStore && typeof simulationStore.addEvent === 'function') {
+          simulationStore.addEvent(deathEvent)
+          console.log(`📰 Created death event for ${characterName}`)
+        }
+      } catch (error) {
+        console.warn('Could not create death event - simulation store not available:', error)
+      }
+      
+      // Add death awareness memories to other characters
+      Object.values(characters.value).forEach(otherCharacter => {
+        if (otherCharacter.id !== characterId && !otherCharacter.isDead) {
+          // Determine emotional weight based on relationship
+          let emotionalWeight = 60 // Base weight for community member death
+          let relationshipContext = ''
+          
+          // Check if they had a relationship
+          const relationship = otherCharacter.relationships?.find(rel => 
+            rel.name === characterName || rel.name.toLowerCase() === characterName.toLowerCase()
+          )
+          
+          if (relationship) {
+            // Adjust weight based on relationship type
+            const relationshipWeights = {
+              'best_friend': 95,
+              'close_friend': 85, 
+              'partner': 98,
+              'romantic_interest': 90,
+              'family': 95,
+              'friend': 75,
+              'neighbor': 65,
+              'colleague': 55,
+              'acquaintance': 45,
+              'rival': 40,
+              'enemy': 25
+            }
+            
+            emotionalWeight = relationshipWeights[relationship.type] || 60
+            relationshipContext = ` They were ${relationship.type || 'known to each other'}.`
+          }
+          
+          // Create death awareness memory
+          const deathAwarenessMemory = {
+            id: `death_awareness_${characterId}_${otherCharacter.id}_${Date.now()}`,
+            timestamp: Date.now(),
+            content: `I learned that ${characterName} has died. Cause: ${causeOfDeath}.${relationshipContext} This is a tragic loss for our community.`,
+            emotional_weight: emotionalWeight,
+            tags: ['death', 'loss', 'community', 'tragic', characterName.toLowerCase()]
+          }
+          
+          otherCharacter.memories.push(deathAwarenessMemory)
+          console.log(`💭 Added death awareness memory to ${otherCharacter.name} (weight: ${emotionalWeight})`)
+        }
+      })
+      
       saveCharacterChanges()
       console.log(`💀 ${character.name} has died: ${causeOfDeath}`)
+      console.log(`📢 Other characters have been notified of ${characterName}'s death`)
       
       return true
     }
@@ -522,7 +732,7 @@ export const useCharactersStore = defineStore('characters', () => {
       character.deathTimestamp = null
       character.currentEmotion = 'confused'
       
-      // Add resurrection memory
+      // Add resurrection memory to the resurrected character
       const resurrectionMemory = {
         id: `${characterId}_resurrection_${Date.now()}`,
         timestamp: Date.now(),
@@ -532,8 +742,87 @@ export const useCharactersStore = defineStore('characters', () => {
       }
       character.memories.push(resurrectionMemory)
       
+      // ENHANCED: Make other characters aware of the resurrection
+      const characterName = character.name
+      
+      // Create simulation event for the resurrection
+      const resurrectionEvent = {
+        type: 'resurrection',
+        timestamp: Date.now(),
+        involvedCharacters: [characterId],
+        summary: `${characterName} has been resurrected: ${resurrectionReason}`,
+        tone: 'miraculous',
+        details: {
+          character_name: characterName,
+          resurrection_reason: resurrectionReason,
+          previous_cause_of_death: previousCause,
+          major_event: true,
+          resurrection_timestamp: Date.now(),
+          location: character.position ? `${character.position.x}, ${character.position.y}` : 'Unknown',
+          zone: character.position?.zone || 'Unknown'
+        }
+      }
+      
+      // Add the resurrection event to simulation (if simulation store is available)
+      try {
+        const simulationStore = useSimulationStore?.()
+        if (simulationStore && typeof simulationStore.addEvent === 'function') {
+          simulationStore.addEvent(resurrectionEvent)
+          console.log(`📰 Created resurrection event for ${characterName}`)
+        }
+      } catch (error) {
+        console.warn('Could not create resurrection event - simulation store not available:', error)
+      }
+      
+      // Add resurrection awareness memories to other characters
+      Object.values(characters.value).forEach(otherCharacter => {
+        if (otherCharacter.id !== characterId && !otherCharacter.isDead) {
+          // Determine emotional weight based on relationship
+          let emotionalWeight = 70 // Base weight for community member resurrection
+          let relationshipContext = ''
+          
+          // Check if they had a relationship
+          const relationship = otherCharacter.relationships?.find(rel => 
+            rel.name === characterName || rel.name.toLowerCase() === characterName.toLowerCase()
+          )
+          
+          if (relationship) {
+            // Adjust weight based on relationship type (resurrections are generally more positive)
+            const relationshipWeights = {
+              'best_friend': 98,
+              'close_friend': 90, 
+              'partner': 99,
+              'romantic_interest': 95,
+              'family': 98,
+              'friend': 85,
+              'neighbor': 75,
+              'colleague': 65,
+              'acquaintance': 55,
+              'rival': 50, // Even rivals might be surprised/impressed
+              'enemy': 30  // Enemies might be disappointed
+            }
+            
+            emotionalWeight = relationshipWeights[relationship.type] || 70
+            relationshipContext = ` We ${relationship.type === 'enemy' ? 'were enemies' : relationship.type === 'rival' ? 'were rivals' : 'had a connection'}.`
+          }
+          
+          // Create resurrection awareness memory
+          const resurrectionAwarenessMemory = {
+            id: `resurrection_awareness_${characterId}_${otherCharacter.id}_${Date.now()}`,
+            timestamp: Date.now(),
+            content: `Incredible news! ${characterName} has returned from the dead through ${resurrectionReason}. They previously died from ${previousCause}.${relationshipContext} This is miraculous and changes everything.`,
+            emotional_weight: emotionalWeight,
+            tags: ['resurrection', 'miracle', 'joy', 'amazement', 'second chance', characterName.toLowerCase()]
+          }
+          
+          otherCharacter.memories.push(resurrectionAwarenessMemory)
+          console.log(`💭 Added resurrection awareness memory to ${otherCharacter.name} (weight: ${emotionalWeight})`)
+        }
+      })
+      
       saveCharacterChanges()
       console.log(`✨ ${character.name} has been resurrected: ${resurrectionReason}`)
+      console.log(`📢 Other characters have been notified of ${characterName}'s miraculous return`)
       
       return true
     }
