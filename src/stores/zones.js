@@ -339,9 +339,14 @@ export const useZonesStore = defineStore('zones', () => {
   }
 
   // Movement and pathfinding support
-  function isPositionWalkable(x, y) {
+  function isPositionWalkable(x, y, charactersToAvoid = []) {
     // Check if position is within map bounds
     if (x < 0 || y < 0 || x >= 50 || y >= 37) return false
+    
+    // Check if position is occupied by another character
+    if (charactersToAvoid.some(char => char.position.x === x && char.position.y === y)) {
+      return false;
+    }
     
     // Check if any zone at this position has walkable set to false
     const zoneAtPosition = zones.value.find(zone => 
@@ -363,7 +368,7 @@ export const useZonesStore = defineStore('zones', () => {
     return true
   }
   
-  function findPath(startX, startY, targetX, targetY) {
+  function findPath(startX, startY, targetX, targetY, charactersToAvoid = []) {
     // Simple A* pathfinding implementation
     const openSet = []
     const closedSet = new Set()
@@ -409,7 +414,7 @@ export const useZonesStore = defineStore('zones', () => {
       for (const neighbor of neighbors) {
         const neighborKey = `${neighbor.x},${neighbor.y}`
         
-        if (closedSet.has(neighborKey) || !isPositionWalkable(neighbor.x, neighbor.y)) {
+        if (closedSet.has(neighborKey) || !isPositionWalkable(neighbor.x, neighbor.y, charactersToAvoid)) {
           continue
         }
         
@@ -436,19 +441,19 @@ export const useZonesStore = defineStore('zones', () => {
     return Math.abs(x1 - x2) + Math.abs(y1 - y2)
   }
   
-  function getValidMovePosition(fromX, fromY, toX, toY, maxDistance = 3) {
+  function getValidMovePosition(fromX, fromY, toX, toY, maxDistance = 3, charactersToAvoid = []) {
     // Limit movement distance per tick
     const distance = Math.abs(toX - fromX) + Math.abs(toY - fromY)
     
     if (distance <= maxDistance) {
       // If target is close and walkable, go there directly
-      if (isPositionWalkable(toX, toY)) {
+      if (isPositionWalkable(toX, toY, charactersToAvoid)) {
         return { x: toX, y: toY }
       }
     }
     
     // Find path and return next step
-    const path = findPath(fromX, fromY, toX, toY)
+    const path = findPath(fromX, fromY, toX, toY, charactersToAvoid)
     if (path && path.length > 0) {
       // Return position that's within maxDistance
       const stepsToTake = Math.min(maxDistance, path.length)
@@ -467,7 +472,7 @@ export const useZonesStore = defineStore('zones', () => {
         const newX = fromX + (dir.dx * dist)
         const newY = fromY + (dir.dy * dist)
         
-        if (isPositionWalkable(newX, newY)) {
+        if (isPositionWalkable(newX, newY, charactersToAvoid)) {
           return { x: newX, y: newY }
         }
       }

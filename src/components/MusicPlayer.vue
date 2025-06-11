@@ -219,13 +219,14 @@ function handleError(error) {
 
 // --- Lifecycle and Theme Sync ---
 let themeCheckInterval = null;
+let lastThemeCheckTime = 0;
 
 function updateAutoTrackBasedOnTheme() {
   if (selectedTrackIndex.value !== 'auto' || musicTracks.value.length <= 1) return
 
   const now = Date.now()
-  if (now - (themeCheckInterval?.lastCheck || 0) < 30000) return
-  if(themeCheckInterval) themeCheckInterval.lastCheck = now
+  if (now - lastThemeCheckTime < 30000) return;
+  lastThemeCheckTime = now;
   
   const environment = simulation.environment || {}
   const timeOfDay = environment.timeOfDay || 'day'

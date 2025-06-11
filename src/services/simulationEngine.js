@@ -338,6 +338,12 @@ class ComprehensiveSimulationEngine {
       context.ongoingConversation = `ONGOING CONVERSATION:\n${recentMessages.map(msg => `${this.stores.characters.getCharacter(msg.speakerId)?.name || 'Someone'}: ${msg.content}`).join('\n')}`
     }
 
+    // **FIXED: Add the injection to the context object!**
+    if (injection) {
+      context.injectedScenario = injection
+      console.log(`[CONTEXT] Injecting scenario for ${character.name}: "${injection.content}"`)
+    }
+
     let dynamicPrompt = '';
     // Add scenario injection if present
     if (context.injectedScenario) {
@@ -473,7 +479,8 @@ class ComprehensiveSimulationEngine {
     if (nearbyCharacters.length > 0) {
       const existingConversation = this.stores.simulation.conversations.find(conv => 
         conv.isActive &&
-        [character.id, ...nearbyCharacters.map(nc => nc.id)].some(id => conv.participants.includes(id)) &&
+        conv.participants.includes(character.id) &&
+        nearbyCharacters.some(nc => conv.participants.includes(nc.id)) &&
         (Date.now() - (conv.lastMessageAt || conv.startTime) < 120000) // 2-minute activity window
       );
 
@@ -522,7 +529,7 @@ class ComprehensiveSimulationEngine {
     nearbyCharacters.forEach(nearby => {
       this.addMemoryToCharacter(nearby, `${character.name} said: "${dialogue}"`, 5)
       // Update affinity based on conversation
-      this.updateRelationshipAffinity(character.id, nearby.id, this.getAffinityDelta(action.emotion));
+      this.updateRelationshipAffinity(character.id, nearby.id, this.getAffinityDelta(character.currentEmotion));
     })
   }
 
@@ -541,16 +548,40 @@ class ComprehensiveSimulationEngine {
 
     if (!target) return; // Still no target, abort
 
+    const otherCharacters = this.stores.characters.charactersList.filter(c => c.id !== character.id);
+
+    // Find a valid adjacent position to the target
+    const targetX = target.position.x;
+    const targetY = target.position.y;
+    const adjacentPositions = [
+        {x: targetX, y: targetY - 1}, // North
+        {x: targetX, y: targetY + 1}, // South
+        {x: targetX - 1, y: targetY}, // West
+        {x: targetX + 1, y: targetY}, // East
+    ].sort((a,b) => (Math.abs(a.x - character.position.x) + Math.abs(a.y - character.position.y)) - (Math.abs(b.x - character.position.x) + Math.abs(b.y - character.position.y))); // Sort by distance from character
+
+    
+    // Find the first walkable and unoccupied adjacent position
+    const validTargetPosition = adjacentPositions.find(p => 
+        this.stores.zones.isPositionWalkable(p.x, p.y, otherCharacters)
+    );
+
+    if (!validTargetPosition) {
+        console.log(`[APPROACH] No valid spot to approach ${target.name} for ${character.name}`);
+        return; // Can't approach
+    }
+
     // Update affinity since an approach is a positive social action
     this.updateRelationshipAffinity(character.id, target.id, 5);
 
-    // Use zone pathfinding for movement
+    // Use zone pathfinding for movement to the adjacent spot
     const newPosition = this.stores.zones.getValidMovePosition(
       character.position.x, 
       character.position.y, 
-      target.position.x, 
-      target.position.y, 
-      7 // max distance per tick
+      validTargetPosition.x, // move to adjacent tile
+      validTargetPosition.y, // move to adjacent tile
+      7, // max distance per tick
+      otherCharacters
     )
     
     if (newPosition && (newPosition.x !== character.position.x || newPosition.y !== character.position.y)) {
@@ -562,12 +593,14 @@ class ComprehensiveSimulationEngine {
     if (!action.targetX || !action.targetY) {
       return
     }
+    const otherCharacters = this.stores.characters.charactersList.filter(c => c.id !== character.id);
     const newPosition = this.stores.zones.getValidMovePosition(
       character.position.x, 
       character.position.y, 
       action.targetX,
       action.targetY,
-      7
+      7,
+      otherCharacters
     )
     if (newPosition && (newPosition.x !== character.position.x || newPosition.y !== character.position.y)) {
       this.moveCharacterToPosition(character, newPosition, action.targetZone || 'Unknown')
@@ -603,7 +636,7 @@ class ComprehensiveSimulationEngine {
     })
   }
 
-  findNearbyCharacters(character, maxDistance = 3) {
+  findNearbyCharacters(character, maxDistance = 5) {
     return this.stores.characters.charactersList.filter(other => {
       if (other.id === character.id || other.isDead) return false
       const distance = Math.abs(other.position.x - character.position.x) + Math.abs(other.position.y - character.position.y)
@@ -735,17 +768,15 @@ class ComprehensiveSimulationEngine {
 
       let areParticipantsNearby = true;
       if (participants.length > 1) {
-        for (let i = 0; i < participants.length - 1; i++) {
-          for (let j = i + 1; j < participants.length; j++) {
-            const char1 = participants[i];
-            const char2 = participants[j];
-            const distance = Math.abs(char1.position.x - char2.position.x) + Math.abs(char1.position.y - char2.position.y);
-            if (distance > 5) { // Increased distance threshold
-              areParticipantsNearby = false;
-              break;
-            }
+        const avgX = participants.reduce((sum, p) => sum + p.position.x, 0) / participants.length;
+        const avgY = participants.reduce((sum, p) => sum + p.position.y, 0) / participants.length;
+
+        for (const p of participants) {
+          const distance = Math.abs(p.position.x - avgX) + Math.abs(p.position.y - avgY);
+          if (distance > 4) { // Stricter distance check from center of group
+            areParticipantsNearby = false;
+            break;
           }
-          if (!areParticipantsNearby) break;
         }
       }
 
