@@ -205,14 +205,12 @@ export class ClaudeApiService {
       haiku: { input: 0, output: 0, calls: 0 },
       sonnet: { input: 0, output: 0, calls: 0 }
     }
-    
-    // FIXED: Initialize with effective API key on construction
-    this.apiKey = getEffectiveApiKey()
   }
 
   setApiKey(key) {
     this.apiKey = key
-    console.log('🔑 Claude API key updated in service')
+    setApiKey(key); // Also set the module-level key
+    console.log('🔑 Claude API key updated in service and module')
   }
 
   getApiKey() {
