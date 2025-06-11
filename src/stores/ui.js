@@ -106,7 +106,7 @@ export const useUIStore = defineStore('ui', () => {
         return false
       }
       
-      state.claudeApiKey = cleanKey
+      claudeApiKey.value = cleanKey
       console.log('✅ Claude API key updated in UI store')
       
       // Also set the key in the Claude API service
@@ -121,7 +121,7 @@ export const useUIStore = defineStore('ui', () => {
       return true
     } else {
       // Clear the key
-      state.claudeApiKey = ''
+      claudeApiKey.value = ''
       console.log('🗑️ Claude API key cleared')
       
       // Also clear the key in the Claude API service
@@ -318,6 +318,7 @@ export const useUIStore = defineStore('ui', () => {
       editMode: editMode.value,
       timeSpeed: timeSpeed.value,
       claudeApiKey: claudeApiKey.value,
+      openaiApiKey: openaiApiKey.value,
       canvasState: canvasState.value
     }
     localStorage.setItem('meadowloop-ui', JSON.stringify(data))
@@ -332,6 +333,7 @@ export const useUIStore = defineStore('ui', () => {
         if (data.editMode !== undefined) editMode.value = data.editMode
         if (data.timeSpeed) timeSpeed.value = data.timeSpeed
         if (data.claudeApiKey) claudeApiKey.value = data.claudeApiKey
+        if (data.openaiApiKey) openaiApiKey.value = data.openaiApiKey
         if (data.canvasState) {
           canvasState.value = { ...canvasState.value, ...data.canvasState }
         }
