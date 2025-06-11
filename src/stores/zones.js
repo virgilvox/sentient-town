@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { useAssetStore } from './assets'
+import { useAssetStore } from './assets.js'
 
 export const useZonesStore = defineStore('zones', () => {
   // State
@@ -75,7 +75,6 @@ export const useZonesStore = defineStore('zones', () => {
     }
 
     try {
-      console.log('🗺️ Attempting to load zones from /map/zones.json...')
       const response = await fetch('/map/zones.json')
       
       if (!response.ok) {
@@ -83,11 +82,6 @@ export const useZonesStore = defineStore('zones', () => {
       }
       
       const data = await response.json()
-      console.log('🗺️ Loaded zones data:', data)
-      console.log('🗺️ Data type:', typeof data)
-      console.log('🗺️ Data.zones exists:', 'zones' in data)
-      console.log('🗺️ Data.zones type:', typeof data.zones)
-      console.log('🗺️ Data.zones is array:', Array.isArray(data.zones))
       
       // Validate the data structure
       if (!data || typeof data !== 'object') {
@@ -99,22 +93,15 @@ export const useZonesStore = defineStore('zones', () => {
       if (Array.isArray(data)) {
         // Data is directly an array of zones
         zonesArray = data
-        console.log('🗺️ Zones data is a direct array')
       } else if (data.zones && Array.isArray(data.zones)) {
         // Data has a zones property with array
         zonesArray = data.zones
-        console.log('🗺️ Zones data has zones property')
       } else {
         throw new Error('Invalid zones data: no zones array found')
       }
       
-      console.log('🗺️ About to assign zonesArray:', zonesArray)
-      console.log('🗺️ ZonesArray length:', zonesArray.length)
-      console.log('🗺️ ZonesArray is array:', Array.isArray(zonesArray))
-      
       try {
         originalZones.value = zonesArray
-        console.log('🗺️ Successfully assigned to originalZones')
       } catch (assignError) {
         console.error('🗺️ Error assigning to originalZones:', assignError)
         throw assignError
@@ -126,7 +113,6 @@ export const useZonesStore = defineStore('zones', () => {
         try {
           const changes = JSON.parse(savedChanges)
           zones.value = mergeZoneChanges(zonesArray, changes)
-          console.log('🗺️ Applied saved zone changes')
         } catch (parseError) {
           console.warn('🗺️ Failed to parse saved zone changes, using original zones:', parseError)
           zones.value = [...zonesArray]
@@ -135,12 +121,11 @@ export const useZonesStore = defineStore('zones', () => {
         zones.value = [...zonesArray]
       }
       
-      console.log(`🗺️ Successfully loaded ${zones.value.length} zones`)
       isLoaded.value = true
       
     } catch (error) {
       console.warn('🗺️ Failed to load zones from file:', error.message)
-      console.log('🗺️ Creating default zones as fallback...')
+      console.warn('🗺️ Creating default zones as fallback...')
       
       // Create default zones as fallback
       const defaultZones = [
@@ -192,12 +177,17 @@ export const useZonesStore = defineStore('zones', () => {
       originalZones.value = defaultZones
       zones.value = [...defaultZones]
       
-      console.log(`🗺️ Created ${defaultZones.length} default zones`)
       isLoaded.value = true
     }
   }
 
   function addZone(zone) {
+    // Set default walkable property if not explicitly provided
+    if (zone.walkable === undefined) {
+      const solidTypes = ['solid', 'wall', 'building', 'obstacle']
+      zone.walkable = !solidTypes.includes(zone.type)
+    }
+    
     zones.value.push(zone)
     saveZoneChanges()
   }
@@ -309,7 +299,8 @@ export const useZonesStore = defineStore('zones', () => {
       type: zone.type || 'public',
       tiles: zone.tiles || [],
       description: zone.description || '',
-      owner: zone.owner
+      owner: zone.owner,
+      walkable: zone.walkable !== undefined ? zone.walkable : true  // Default to walkable unless specified
     }))
     
     zones.value = validZones
@@ -347,6 +338,157 @@ export const useZonesStore = defineStore('zones', () => {
     await loadZones()
   }
 
+  // Movement and pathfinding support
+  function isPositionWalkable(x, y) {
+    // Check if position is within map bounds
+    if (x < 0 || y < 0 || x >= 50 || y >= 37) return false
+    
+    // Check if any zone at this position has walkable set to false
+    const zoneAtPosition = zones.value.find(zone => 
+      zone.tiles.some(tile => tile.x === x && tile.y === y)
+    )
+    
+    if (zoneAtPosition) {
+      // If zone has explicit walkable property, use it
+      if (typeof zoneAtPosition.walkable === 'boolean') {
+        return zoneAtPosition.walkable
+      }
+      
+      // Otherwise fall back to type-based checking
+      const solidTypes = ['solid', 'wall', 'building', 'obstacle']
+      return !solidTypes.includes(zoneAtPosition.type)
+    }
+    
+    // If no zone at position, it's walkable
+    return true
+  }
+  
+  function findPath(startX, startY, targetX, targetY) {
+    // Simple A* pathfinding implementation
+    const openSet = []
+    const closedSet = new Set()
+    const cameFrom = new Map()
+    const gScore = new Map()
+    const fScore = new Map()
+    
+    const startKey = `${startX},${startY}`
+    const targetKey = `${targetX},${targetY}`
+    
+    // Initialize start position
+    openSet.push({ x: startX, y: startY, key: startKey })
+    gScore.set(startKey, 0)
+    fScore.set(startKey, heuristic(startX, startY, targetX, targetY))
+    
+    while (openSet.length > 0) {
+      // Get position with lowest fScore
+      openSet.sort((a, b) => fScore.get(a.key) - fScore.get(b.key))
+      const current = openSet.shift()
+      
+      if (current.key === targetKey) {
+        // Reconstruct path
+        const path = []
+        let currentKey = targetKey
+        while (currentKey !== startKey) {
+          const [x, y] = currentKey.split(',').map(Number)
+          path.unshift({ x, y })
+          currentKey = cameFrom.get(currentKey)
+        }
+        return path
+      }
+      
+      closedSet.add(current.key)
+      
+      // Check neighbors
+      const neighbors = [
+        { x: current.x + 1, y: current.y },
+        { x: current.x - 1, y: current.y },
+        { x: current.x, y: current.y + 1 },
+        { x: current.x, y: current.y - 1 }
+      ]
+      
+      for (const neighbor of neighbors) {
+        const neighborKey = `${neighbor.x},${neighbor.y}`
+        
+        if (closedSet.has(neighborKey) || !isPositionWalkable(neighbor.x, neighbor.y)) {
+          continue
+        }
+        
+        const tentativeGScore = gScore.get(current.key) + 1
+        
+        if (!openSet.some(pos => pos.key === neighborKey)) {
+          openSet.push({ x: neighbor.x, y: neighbor.y, key: neighborKey })
+        } else if (tentativeGScore >= gScore.get(neighborKey)) {
+          continue
+        }
+        
+        cameFrom.set(neighborKey, current.key)
+        gScore.set(neighborKey, tentativeGScore)
+        fScore.set(neighborKey, tentativeGScore + heuristic(neighbor.x, neighbor.y, targetX, targetY))
+      }
+    }
+    
+    // No path found
+    return null
+  }
+  
+  function heuristic(x1, y1, x2, y2) {
+    // Manhattan distance
+    return Math.abs(x1 - x2) + Math.abs(y1 - y2)
+  }
+  
+  function getValidMovePosition(fromX, fromY, toX, toY, maxDistance = 3) {
+    // Limit movement distance per tick
+    const distance = Math.abs(toX - fromX) + Math.abs(toY - fromY)
+    
+    if (distance <= maxDistance) {
+      // If target is close and walkable, go there directly
+      if (isPositionWalkable(toX, toY)) {
+        return { x: toX, y: toY }
+      }
+    }
+    
+    // Find path and return next step
+    const path = findPath(fromX, fromY, toX, toY)
+    if (path && path.length > 0) {
+      // Return position that's within maxDistance
+      const stepsToTake = Math.min(maxDistance, path.length)
+      return path[stepsToTake - 1]
+    }
+    
+    // If no path found, try to move closer while staying walkable
+    const directions = [
+      { dx: Math.sign(toX - fromX), dy: 0 },
+      { dx: 0, dy: Math.sign(toY - fromY) },
+      { dx: Math.sign(toX - fromX), dy: Math.sign(toY - fromY) }
+    ]
+    
+    for (const dir of directions) {
+      for (let dist = 1; dist <= maxDistance; dist++) {
+        const newX = fromX + (dir.dx * dist)
+        const newY = fromY + (dir.dy * dist)
+        
+        if (isPositionWalkable(newX, newY)) {
+          return { x: newX, y: newY }
+        }
+      }
+    }
+    
+    // If all else fails, stay put
+    return { x: fromX, y: fromY }
+  }
+  
+  function addSolidZone(zone) {
+    // Ensure solid zones have the right type and are not walkable
+    if (!zone.type || !['solid', 'wall', 'building', 'obstacle'].includes(zone.type)) {
+      zone.type = 'solid'
+    }
+    
+    // Explicitly set walkable to false for solid zones
+    zone.walkable = false
+    
+    addZone(zone)
+  }
+
   return {
     // State
     zones,
@@ -376,6 +518,12 @@ export const useZonesStore = defineStore('zones', () => {
     resetZones,
     removeZone,
     clearAllZones,
-    importZones
+    importZones,
+    addSolidZone,
+    
+    // Pathfinding and movement
+    isPositionWalkable,
+    findPath,
+    getValidMovePosition
   }
 }) 

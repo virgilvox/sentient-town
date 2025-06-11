@@ -32,7 +32,27 @@
             <option value="public">🏛️ Public</option>
             <option value="park">🌳 Park</option>
             <option value="street">🛣️ Street</option>
+            <option value="solid">🧱 Solid (Unwalkable)</option>
+            <option value="wall">🚧 Wall</option>
+            <option value="building">🏢 Building</option>
+            <option value="obstacle">⚠️ Obstacle</option>
           </select>
+        </div>
+        
+        <div class="form-group">
+          <label class="walkable-label">
+            <input 
+              v-model="currentZoneWalkable" 
+              type="checkbox" 
+              class="walkable-checkbox"
+            />
+            <span class="walkable-text">
+              {{ currentZoneWalkable ? '✅ Walkable' : '❌ Not Walkable' }}
+            </span>
+          </label>
+          <div class="walkable-help">
+            Characters can move through walkable zones. Unwalkable zones block movement.
+          </div>
         </div>
         
         <div class="form-actions">
@@ -72,6 +92,9 @@
           <div class="zone-details">
             <div class="zone-type">{{ zone.type }}</div>
             <div class="zone-size">{{ zone.tiles?.length || 0 }} tiles</div>
+            <div class="zone-walkable" :class="{ walkable: zone.walkable !== false, unwalkable: zone.walkable === false }">
+              {{ zone.walkable === false ? '🚫 Unwalkable' : '✅ Walkable' }}
+            </div>
           </div>
           <div class="zone-actions">
             <button 
@@ -97,6 +120,9 @@
     <div class="zone-tools">
       <h4>Tools</h4>
       <div class="tools-grid">
+        <button @click="startNewZone" class="tool-btn primary">
+          ➕ Create New Zone
+        </button>
         <button @click="clearAllZones" class="tool-btn danger">
           🗑️ Clear All Zones
         </button>
@@ -145,6 +171,14 @@ const currentZoneType = computed({
   set: (value) => ui.setCurrentZoneType(value)
 })
 
+const currentZoneWalkable = ref(true)
+
+// Watch zone type to auto-set walkable property
+watch(currentZoneType, (newType) => {
+  const unwalkableTypes = ['solid', 'wall', 'building', 'obstacle']
+  currentZoneWalkable.value = !unwalkableTypes.includes(newType)
+}, { immediate: true })
+
 const selectedZone = ref(null)
 const showImportDialog = ref(false)
 const importData = ref('')
@@ -169,7 +203,11 @@ function getZoneIcon(type) {
     shop: '🏪', 
     public: '🏛️',
     park: '🌳',
-    street: '🛣️'
+    street: '🛣️',
+    solid: '🧱',
+    wall: '🚧',
+    building: '🏢',
+    obstacle: '⚠️'
   }
   return icons[type] || '📍'
 }
@@ -189,7 +227,8 @@ function createZone() {
     id: `zone-${Date.now()}`,
     name: currentZoneName.value.trim(),
     type: currentZoneType.value,
-    tiles
+    tiles,
+    walkable: currentZoneWalkable.value
   }
 
   zones.addZone(newZone)
@@ -211,7 +250,8 @@ function updateZone() {
   zones.updateZone(ui.editingZoneId, {
     name: currentZoneName.value.trim(),
     type: currentZoneType.value,
-    tiles
+    tiles,
+    walkable: currentZoneWalkable.value
   })
 
   ui.stopEditingZone()
@@ -224,6 +264,9 @@ function editZone(zone) {
   zone.tiles.forEach(tile => {
     ui.addSelectedTile(tile.x, tile.y)
   })
+  
+  // Load zone properties
+  currentZoneWalkable.value = zone.walkable !== undefined ? zone.walkable : true
   
   // Start editing mode
   ui.startEditingZone(zone.id, zone.name, zone.type)
@@ -241,6 +284,20 @@ function cancelEdit() {
 
 function selectZone(zone) {
   selectedZone.value = selectedZone.value === zone.name ? null : zone.name
+}
+
+function startNewZone() {
+  // Clear any current zone editing and selection
+  ui.stopEditingZone()
+  ui.clearSelectedTiles()
+  selectedZone.value = null
+  
+  // Reset form
+  ui.setCurrentZoneName('')
+  ui.setCurrentZoneType('home')
+  currentZoneWalkable.value = true
+  
+  console.log('🆕 Started creating new zone')
 }
 
 function deleteZone(zoneName) {
@@ -485,6 +542,16 @@ function importZones() {
   color: white;
 }
 
+.tool-btn.primary {
+  background: #28a745;
+  color: white;
+  border-color: #28a745;
+}
+
+.tool-btn.primary:hover {
+  background: #218838;
+}
+
 .import-dialog {
   position: fixed;
   top: 0;
@@ -541,5 +608,38 @@ function importZones() {
 .cancel-btn {
   background: #6c757d;
   color: white;
+}
+
+.walkable-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.walkable-checkbox {
+  margin: 0;
+}
+
+.walkable-text {
+  font-weight: bold;
+  color: #333;
+}
+
+.walkable-help {
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.zone-walkable {
+  font-size: 0.75rem;
+  font-weight: bold;
+}
+
+.zone-walkable.walkable {
+  color: #28a745;
+}
+
+.zone-walkable.unwalkable {
+  color: #dc3545;
 }
 </style> 

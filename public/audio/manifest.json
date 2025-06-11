@@ -1,0 +1,16 @@
+[
+  { "name": "Sunny Village", "url": "/audio/sunny-village.mp3", "tags": ["weather", "sunny", "happy"] },
+  { "name": "Rain Drops", "url": "/audio/rain-drops.mp3", "tags": ["weather", "rainy", "calm"] },
+  { "name": "Cloudy Afternoon", "url": "/audio/cloudy-afternoon.mp3", "tags": ["weather", "cloudy", "peaceful"] },
+  { "name": "Snowfall Quiet", "url": "/audio/snowfall-quiet.mp3", "tags": ["weather", "winter", "calm"] },
+  { "name": "Festival Day", "url": "/audio/festival-day.mp3", "tags": ["mood", "happy", "festival"] },
+  { "name": "Lonely Streets", "url": "/audio/lonely-streets.mp3", "tags": ["mood", "sad", "evening"] },
+  { "name": "Garden Sanctuary", "url": "/audio/garden-sanctuary.mp3", "tags": ["mood", "peaceful", "nature"] },
+  { "name": "Tension Rising", "url": "/audio/tension-rising.mp3", "tags": ["mood", "dramatic", "tension"] },
+  { "name": "Dawn Chorus", "url": "/audio/dawn-chorus.mp3", "tags": ["time", "morning", "nature"] },
+  { "name": "Twilight Hours", "url": "/audio/twilight-hours.mp3", "tags": ["time", "evening", "calm"] },
+  { "name": "Midnight Town", "url": "/audio/midnight-town.mp3", "tags": ["time", "night", "mysterious"] },
+  { "name": "Town Theme RPG", "url": "/audio/town-theme-rpg.mp3", "tags": ["theme", "original", "rpg"] },
+  { "name": "Calm Ambient", "url": "/audio/calm-ambient.mp3", "tags": ["theme", "ambient", "peaceful"] },
+  { "name": "Ambience", "url": "/audio/ambience.mp3", "tags": ["theme", "ambient", "general"] }
+] 

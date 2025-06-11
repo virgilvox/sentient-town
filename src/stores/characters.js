@@ -17,129 +17,138 @@ export const useCharactersStore = defineStore('characters', () => {
   // Actions
   async function loadCharacters() {
     try {
-      console.log('🔄 Loading characters...')
-      
-      // Try to get character list from multiple sources
-      const availableCharacters = await discoverAvailableCharacters()
-      
-      console.log(`📂 Discovered ${availableCharacters.length} character folders:`, availableCharacters)
-      
-      if (availableCharacters.length === 0) {
-        console.warn('⚠️ No character folders found!')
-        console.warn('⚠️ Expected characters in /public/characters/[name]/profile.json')
-        characters.value = {}
-        originalCharacters.value = {}
-        isLoaded.value = true
-        return
-      }
-      
-      // Load character profiles from all available folders
-      const loadPromises = availableCharacters.map(async (name) => {
-        try {
-          console.log(`🔄 Loading character data: ${name}`)
-          const response = await fetch(`/characters/${name}/profile.json`)
-          if (!response.ok) {
-            throw new Error(`Failed to load ${name}: ${response.status} ${response.statusText}`)
-          }
-          const character = await response.json()
-          
-          // Validate required fields
-          if (!character.name || !character.id) {
-            throw new Error(`Character ${name} missing required fields (name or id)`)
-          }
-          
-          // Ensure all required fields exist with defaults
-          const completeCharacter = {
-            id: character.id || name.toLowerCase(),
-            name: character.name || name,
-            age: character.age || 'Unknown',
-            location: character.location || 'Unknown',
-            occupation: character.occupation || 'Unknown',
-            description: character.description || 'No description available.',
-            personality: character.personality || 'Unknown',
-            MBTI: character.MBTI || 'ENFP',
-            bigFive: character.bigFive || {
-              openness: 50,
-              conscientiousness: 50,
-              extraversion: 50,
-              agreeableness: 50,
-              neuroticism: 50
-            },
-            sexuality: character.sexuality || 'heterosexual',
-            desires: character.desires || [],
-            mentalHealth: character.mentalHealth || [],
-            memories: character.memories || [],
-            relationships: character.relationships || [],
-            position: character.position || {
-              x: Math.floor(Math.random() * 50),
-              y: Math.floor(Math.random() * 37),
-              zone: 'unknown'
-            },
-            currentEmotion: character.currentEmotion || 'neutral',
-            sprite: character.sprite || `/characters/${name}/sprite.png`,
-            isDead: character.isDead || false,
-            causeOfDeath: character.causeOfDeath || null,
-            deathTimestamp: character.deathTimestamp || null
-          }
-          
-          // Fix currentZone reference - ensure it uses position.zone for consistency
-          completeCharacter.currentZone = completeCharacter.position.zone
-          
-          console.log(`✅ Successfully loaded character ${name}`)
-          return [completeCharacter.id, completeCharacter]
-        } catch (error) {
-          console.error(`❌ Failed to load character ${name}:`, error)
-          throw error
-        }
-      })
-
-      const characterPairs = await Promise.all(loadPromises)
-      const originalData = Object.fromEntries(characterPairs)
-      
-      console.log(`📊 Loaded ${Object.keys(originalData).length} characters:`, Object.keys(originalData))
-      
-      // Apply migration to original data to ensure proper relationship format
-      for (const character of Object.values(originalData)) {
-        migrateRelationshipFormat(character)
-        // Ensure currentZone is synced with position.zone
-        character.currentZone = character.position.zone
-      }
-      
-      originalCharacters.value = originalData
-      console.log('📦 Original characters stored:', Object.keys(originalData))
-      
-      // Load any modifications from localStorage
-      const savedChanges = localStorage.getItem('meadowloop-characters')
-      if (savedChanges) {
-        try {
-          const parsedChanges = JSON.parse(savedChanges)
-          // **FIXED**: Use the existing helper to correctly deep-merge character data
-          characters.value = mergeCharacterChanges(originalData, parsedChanges)
-          console.log('🔄 Merged characters with saved changes')
-        } catch (error) {
-          console.error('Failed to parse saved character changes:', error)
-          characters.value = originalData
-        }
+      if (typeof process !== 'undefined') {
+        const fs = await import('fs/promises');
+        const path = await import('path');
+        const dataPath = path.join(process.cwd(), 'public', 'characters');
+        const characterDirs = await fs.readdir(dataPath, { withFileTypes: true });
+        const characterPromises = characterDirs
+          .filter(dirent => dirent.isDirectory())
+          .map(async (dir) => {
+            const profilePath = path.join(dataPath, dir.name, 'profile.json');
+            try {
+              const data = await fs.readFile(profilePath, 'utf-8');
+              return JSON.parse(data);
+            } catch (e) {
+              return null; // Ignore if profile.json is missing
+            }
+          });
+        const charactersData = (await Promise.all(characterPromises)).filter(Boolean);
+        const charactersMap = {};
+        charactersData.forEach(c => { charactersMap[c.id] = c; });
+        characters.value = charactersMap;
+        originalCharacters.value = { ...charactersMap };
       } else {
-        characters.value = originalData
-        console.log('📦 Using original character data (no saved changes)')
-      }
-      
-      // Fix any currentZone mismatches after loading
-      Object.values(characters.value).forEach(character => {
-        if (character.position && character.position.zone) {
+        // Browser-based fetch logic
+        
+        // Try to get character list from multiple sources
+        const availableCharacters = await discoverAvailableCharacters()
+        
+        if (availableCharacters.length === 0) {
+          console.warn('⚠️ No character folders found!')
+          console.warn('⚠️ Expected characters in /public/characters/[name]/profile.json')
+          characters.value = {}
+          originalCharacters.value = {}
+          isLoaded.value = true
+          return
+        }
+        
+        // Load character profiles from all available folders
+        const loadPromises = availableCharacters.map(async (name) => {
+          try {
+            const response = await fetch(`/characters/${name}/profile.json`)
+            if (!response.ok) {
+              throw new Error(`Failed to load ${name}: ${response.status} ${response.statusText}`)
+            }
+            const character = await response.json()
+            
+            // Validate required fields
+            if (!character.name || !character.id) {
+              throw new Error(`Character ${name} missing required fields (name or id)`)
+            }
+            
+            // Ensure all required fields exist with defaults
+            const completeCharacter = {
+              id: character.id || name.toLowerCase(),
+              name: character.name || name,
+              age: character.age || 'Unknown',
+              location: character.location || 'Unknown',
+              occupation: character.occupation || 'Unknown',
+              description: character.description || 'No description available.',
+              personality: character.personality || 'Unknown',
+              MBTI: character.MBTI || 'ENFP',
+              bigFive: character.bigFive || {
+                openness: 50,
+                conscientiousness: 50,
+                extraversion: 50,
+                agreeableness: 50,
+                neuroticism: 50
+              },
+              sexuality: character.sexuality || 'heterosexual',
+              desires: character.desires || [],
+              mentalHealth: character.mentalHealth || [],
+              memories: character.memories || [],
+              relationships: character.relationships || [],
+              position: character.position || {
+                x: Math.floor(Math.random() * 50),
+                y: Math.floor(Math.random() * 37),
+                zone: 'unknown'
+              },
+              currentEmotion: character.currentEmotion || 'neutral',
+              sprite: character.sprite || `/characters/${name}/sprite.png`,
+              isDead: character.isDead || false,
+              causeOfDeath: character.causeOfDeath || null,
+              deathTimestamp: character.deathTimestamp || null
+            }
+            
+            // Fix currentZone reference - ensure it uses position.zone for consistency
+            completeCharacter.currentZone = completeCharacter.position.zone
+            
+            return [completeCharacter.id, completeCharacter]
+          } catch (error) {
+            console.error(`❌ Failed to load character ${name}:`, error)
+            throw error
+          }
+        })
+
+        const characterPairs = await Promise.all(loadPromises)
+        const originalData = Object.fromEntries(characterPairs)
+        
+        // Apply migration to original data to ensure proper relationship format
+        for (const character of Object.values(originalData)) {
+          migrateRelationshipFormat(character)
+          // Ensure currentZone is synced with position.zone
           character.currentZone = character.position.zone
         }
-      })
-      
-      // Set loaded flag to true on success
-      isLoaded.value = true
-      
-      console.log('✅ Characters loading complete!')
-      console.log(`📋 Total characters: ${Object.keys(characters.value).length}`)
-      console.log(`👥 Character names: ${charactersList.value.map(c => c.name).join(', ')}`)
-      console.log('🏁 Character store ready for use')
-      
+        
+        originalCharacters.value = originalData
+        
+        // Load any modifications from localStorage
+        const savedChanges = localStorage.getItem('meadowloop-characters')
+        if (savedChanges) {
+          try {
+            const parsedChanges = JSON.parse(savedChanges)
+            // **FIXED**: Use the existing helper to correctly deep-merge character data
+            characters.value = mergeCharacterChanges(originalData, parsedChanges)
+          } catch (error) {
+            console.error('Failed to parse saved character changes:', error)
+            characters.value = originalData
+          }
+        } else {
+          characters.value = originalData
+        }
+        
+        // Fix any currentZone mismatches after loading
+        Object.values(characters.value).forEach(character => {
+          if (character.position && character.position.zone) {
+            character.currentZone = character.position.zone
+          }
+        })
+        
+        // Set loaded flag to true on success
+        isLoaded.value = true
+        
+      }
     } catch (error) {
       console.error('❌ Failed to load characters:', error)
       console.error('❌ Stack trace:', error.stack)
@@ -152,17 +161,14 @@ export const useCharactersStore = defineStore('characters', () => {
 
   // New function to discover available characters dynamically
   async function discoverAvailableCharacters() {
-    console.log('🕵️ Discovering available characters...')
     const availableCharacters = []
     
     // Method 1: Try to load a manifest file that lists characters
     try {
-      console.log('📋 Trying to load character manifest...')
       const manifestResponse = await fetch('/characters/manifest.json')
       if (manifestResponse.ok) {
         const manifest = await manifestResponse.json()
         if (manifest.characters && Array.isArray(manifest.characters)) {
-          console.log('✅ Found character manifest:', manifest.characters)
           
           // Verify each character in the manifest actually exists
           for (const characterName of manifest.characters) {
@@ -170,12 +176,11 @@ export const useCharactersStore = defineStore('characters', () => {
               const response = await fetch(`/characters/${characterName}/profile.json`, { method: 'HEAD' })
               if (response.ok) {
                 availableCharacters.push(characterName)
-                console.log(`✅ Confirmed character from manifest: ${characterName}`)
               } else {
-                console.log(`⚠️ Character in manifest not found: ${characterName}`)
+                console.warn(`⚠️ Character in manifest not found: ${characterName}`)
               }
             } catch (error) {
-              console.log(`⚠️ Error checking character from manifest ${characterName}:`, error.message)
+              console.warn(`⚠️ Error checking character from manifest ${characterName}:`, error.message)
             }
           }
           
@@ -185,7 +190,6 @@ export const useCharactersStore = defineStore('characters', () => {
         }
       }
     } catch (error) {
-      console.log('📋 No character manifest found, trying discovery method...')
     }
     
     // Method 2: Try common character names (expanded list)
@@ -207,15 +211,11 @@ export const useCharactersStore = defineStore('characters', () => {
       'Thistle'
     ]
     
-    console.log('🔍 Checking for characters by trying common names...')
-    
     for (const name of commonCharacterNames) {
       try {
-        console.log(`🔍 Checking character: ${name}`)
         const response = await fetch(`/characters/${name}/profile.json`, { method: 'HEAD' })
         if (response.ok) {
           availableCharacters.push(name)
-          console.log(`✅ Found character: ${name}`)
         }
       } catch (error) {
         // Silently continue - we expect many to fail
@@ -300,7 +300,6 @@ export const useCharactersStore = defineStore('characters', () => {
               }
               
               simulationStore.addEvent(movementEvent)
-              console.log(`📍 Created movement event for ${character.name}: ${oldZoneName} → ${newZoneName}`)
             }
           }).catch(error => {
             console.warn('Could not create movement event - simulation store not available:', error)
@@ -596,7 +595,6 @@ export const useCharactersStore = defineStore('characters', () => {
 
     characters.value[newCharacter.id] = newCharacter
     saveCharacterChanges()
-    console.log(`✅ Created new character: ${newCharacter.name}`)
     
     return newCharacter
   }
@@ -612,7 +610,6 @@ export const useCharactersStore = defineStore('characters', () => {
       }
       
       saveCharacterChanges()
-      console.log(`❌ Deleted character: ${characterName}`)
       
       return true
     }
@@ -662,7 +659,6 @@ export const useCharactersStore = defineStore('characters', () => {
         const simulationStore = useSimulationStore?.()
         if (simulationStore && typeof simulationStore.addEvent === 'function') {
           simulationStore.addEvent(deathEvent)
-          console.log(`📰 Created death event for ${characterName}`)
         }
       } catch (error) {
         console.warn('Could not create death event - simulation store not available:', error)
@@ -710,13 +706,10 @@ export const useCharactersStore = defineStore('characters', () => {
           }
           
           otherCharacter.memories.push(deathAwarenessMemory)
-          console.log(`💭 Added death awareness memory to ${otherCharacter.name} (weight: ${emotionalWeight})`)
         }
       })
       
       saveCharacterChanges()
-      console.log(`💀 ${character.name} has died: ${causeOfDeath}`)
-      console.log(`📢 Other characters have been notified of ${characterName}'s death`)
       
       return true
     }
@@ -768,7 +761,6 @@ export const useCharactersStore = defineStore('characters', () => {
         const simulationStore = useSimulationStore?.()
         if (simulationStore && typeof simulationStore.addEvent === 'function') {
           simulationStore.addEvent(resurrectionEvent)
-          console.log(`📰 Created resurrection event for ${characterName}`)
         }
       } catch (error) {
         console.warn('Could not create resurrection event - simulation store not available:', error)
@@ -816,13 +808,10 @@ export const useCharactersStore = defineStore('characters', () => {
           }
           
           otherCharacter.memories.push(resurrectionAwarenessMemory)
-          console.log(`💭 Added resurrection awareness memory to ${otherCharacter.name} (weight: ${emotionalWeight})`)
         }
       })
       
       saveCharacterChanges()
-      console.log(`✨ ${character.name} has been resurrected: ${resurrectionReason}`)
-      console.log(`📢 Other characters have been notified of ${characterName}'s miraculous return`)
       
       return true
     }
@@ -850,7 +839,6 @@ export const useCharactersStore = defineStore('characters', () => {
 
     characters.value[duplicate.id] = duplicate
     saveCharacterChanges()
-    console.log(`📋 Duplicated character: ${original.name} -> ${duplicate.name}`)
     
     return duplicate
   }

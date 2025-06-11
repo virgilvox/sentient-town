@@ -15,6 +15,8 @@ Each tick, simulate:
 4. Any conversation they initiate or respond to
 
 CONVERSATION GUIDELINES - CRITICAL:
+- **RESPOND TO NEARBY SPEECH**: If you see "CONVERSATION PRIORITY" context, you just heard someone speak nearby - strongly consider responding appropriately based on your relationship and personality
+- **JOIN ONGOING CONVERSATIONS**: If there's an "ONGOING CONVERSATION NEARBY", you can naturally join by speaking or listen and then contribute
 - When someone nearby is speaking, consider responding naturally based on your relationship and personality
 - Conversations should feel organic - start with greetings, develop topics, and end naturally
 - If you're in an ongoing conversation, stay engaged unless you have a strong reason to leave
@@ -23,6 +25,7 @@ CONVERSATION GUIDELINES - CRITICAL:
 - Conversations can be deep or light depending on your personality and the relationship
 - Natural conversation flow: greeting → topic development → responses → conclusion
 - Stay in character - introverts might listen more, extroverts might drive conversation
+- **SOCIAL AWARENESS**: If you overhear someone speaking, you may react, approach, or respond based on your personality and relationship with them
 
 You must reflect the character's:
 - MBTI and Big Five traits
@@ -66,14 +69,19 @@ CHARACTER DEVELOPMENT PRINCIPLES:
 - Desires and goals should create meaningful motivation for actions
 - Conversations should reveal character depth and create lasting impact
 
-Always respond in the following JSON format:
+Always respond in the following JSON format. Provide ONLY the JSON object.
 
 \`\`\`json
 {
-  "internal_thoughts": "What the character is currently thinking...",
-  "action": "move_to_zone / approach_character / speak / stay_idle",
-  "dialogue": "Optional message said aloud, if speaking",
-  "emotion": "e.g. anxious, hopeful, mischievous"
+  "internal_thoughts": "A brief, literary thought or feeling. What is on the character's mind right now?",
+  "emotion": "A single-word emotion describing their current state (e.g., content, anxious, nostalgic, determined).",
+  "action": "The character's next action. Must be one of: move_to_zone, approach_character, speak, stay_idle.",
+  "action_reasoning": "A brief, in-character explanation for why they chose this action.",
+  "dialogue": "What the character says aloud. Empty string if not speaking. Keep it natural and concise.",
+  "targetCharacterName": "The name of the character to approach, if action is 'approach_character'.",
+  "targetZone": "The name of the zone they intend to move to, if action is 'move_to_zone'.",
+  "targetX": "The X coordinate for movement, if action is 'move_to_zone'.",
+  "targetY": "The Y coordinate for movement, if action is 'move_to_zone'."
 }
 \`\`\`
 
@@ -85,24 +93,25 @@ let apiKey = null
 
 // Get the effective API key with fallback logic
 function getEffectiveApiKey() {
-  console.log('🔍 Determining effective Claude API key...')
   
   // 1. Check explicitly set API key first
   if (apiKey && apiKey.trim()) {
-    console.log('✅ Using explicitly set API key (via setApiKey method)')
     return apiKey.trim()
   }
   
-  // 2. Check environment variables
-  const envKey = import.meta.env.VITE_CLAUDE_API_KEY
-  console.log('🌍 Environment variable check:', {
-    found: !!envKey,
-    length: envKey ? envKey.length : 0,
-    startsWithSk: envKey ? envKey.startsWith('sk-') : false
-  })
+  // 2. Check environment variables (browser or Node)
+  let envKey = undefined
+  try {
+    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_CLAUDE_API_KEY) {
+      envKey = import.meta.env.VITE_CLAUDE_API_KEY
+    } else if (typeof process !== 'undefined' && process.env && process.env.VITE_CLAUDE_API_KEY) {
+      envKey = process.env.VITE_CLAUDE_API_KEY
+    }
+  } catch (e) {
+    // Ignore
+  }
   
   if (envKey && envKey.trim()) {
-    console.log('✅ Using Claude API key from environment variables')
     return envKey.trim()
   }
   
@@ -116,21 +125,43 @@ export function setApiKey(key) {
   apiKey = key
 }
 
-export async function callClaude(prompt, context = null) {
+export { getEffectiveApiKey }
+
+export async function callClaude(prompt, model = 'haiku', enableCaching = false) {
   const effectiveApiKey = getEffectiveApiKey()
   
   if (!effectiveApiKey) {
     throw new Error('Claude API key not configured. Please set your API key in Settings or environment variables.')
   }
 
+  // Model selection
+  const modelMap = {
+    'haiku': 'claude-3-haiku-20240307',
+    'sonnet': 'claude-3-5-sonnet-20241022'
+  }
+  const selectedModel = modelMap[model] || modelMap['haiku']
+  
   const body = {
-    model: 'claude-3-haiku-20240307', // Switched to Haiku 3
+    model: selectedModel,
     max_tokens: 1000,
-    messages: [{ role: 'user', content: prompt }],
-    system: SYSTEM_PROMPT
+    messages: [{ role: 'user', content: prompt }]
   }
 
-  console.log('Making Claude API call via proxy...')
+  // Add system prompt with caching if enabled and model supports it
+  if (enableCaching && model === 'haiku') {
+    body.system = [
+      {
+        type: "text",
+        text: SYSTEM_PROMPT,
+        cache_control: { type: "ephemeral" }
+      }
+    ]
+  } else {
+    body.system = SYSTEM_PROMPT
+  }
+
+  const startTime = Date.now()
+  
   const response = await fetch(CLAUDE_API_URL, {
     method: 'POST',
     headers: {
@@ -148,8 +179,17 @@ export async function callClaude(prompt, context = null) {
     throw new Error(`Claude API error: ${response.status} ${errorData.error?.message || response.statusText}`)
   }
 
-  console.log('Claude API call successful')
-  return await response.json()
+  const result = await response.json()
+  const endTime = Date.now()
+  
+  // Log usage stats
+  if (result.usage) {
+    const { input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens } = result.usage
+    const duration = endTime - startTime
+    
+  }
+
+  return result
 }
 
 export class ClaudeApiService {
@@ -163,6 +203,9 @@ export class ClaudeApiService {
       haiku: { input: 0, output: 0, calls: 0 },
       sonnet: { input: 0, output: 0, calls: 0 }
     }
+    
+    // FIXED: Initialize with effective API key on construction
+    this.apiKey = getEffectiveApiKey()
   }
 
   setApiKey(key) {
@@ -252,13 +295,9 @@ export class ClaudeApiService {
     // Extract and log token usage including cache info
     const usage = responseData.usage
     if (usage) {
-      const { input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens } = usage
-      const duration = endTime - startTime
-      
-      // Update session totals
-      this.sessionTokens[modelType].input += input_tokens
-      this.sessionTokens[modelType].output += output_tokens
-      this.sessionTokens[modelType].calls += 1
+      this.sessionTokens[modelType].input += usage.input_tokens || 0;
+      this.sessionTokens[modelType].output += usage.output_tokens || 0;
+      this.sessionTokens[modelType].calls += 1;
       
       // Calculate cost for this call (Haiku 3 with cache-aware pricing)
       let inputCost = 0
@@ -266,33 +305,33 @@ export class ClaudeApiService {
       let cacheReadCost = 0
       
       if (modelType === 'haiku') {
-        inputCost = (input_tokens * 0.25 / 1000000)  // Regular input tokens
-        cacheWriteCost = ((cache_creation_input_tokens || 0) * 0.30 / 1000000)  // Cache write tokens
-        cacheReadCost = ((cache_read_input_tokens || 0) * 0.03 / 1000000)  // Cache read tokens (90% savings!)
+        inputCost = (usage.input_tokens * 0.25 / 1000000)  // Regular input tokens
+        cacheWriteCost = ((usage.cache_creation_input_tokens || 0) * 0.30 / 1000000)  // Cache write tokens
+        cacheReadCost = ((usage.cache_read_input_tokens || 0) * 0.03 / 1000000)  // Cache read tokens (90% savings!)
       } else {
-        inputCost = (input_tokens * 3.00 / 1000000)  // Sonnet regular input
-        cacheWriteCost = ((cache_creation_input_tokens || 0) * 3.75 / 1000000)  // Sonnet cache write
-        cacheReadCost = ((cache_read_input_tokens || 0) * 0.30 / 1000000)  // Sonnet cache read
+        inputCost = (usage.input_tokens * 3.00 / 1000000)  // Sonnet regular input
+        cacheWriteCost = ((usage.cache_creation_input_tokens || 0) * 3.75 / 1000000)  // Sonnet cache write
+        cacheReadCost = ((usage.cache_read_input_tokens || 0) * 0.30 / 1000000)  // Sonnet cache read
       }
       
       const outputCost = modelType === 'haiku'
-        ? (output_tokens * 1.25 / 1000000)  // Haiku 3: $1.25 per million output tokens  
-        : (output_tokens * 15.00 / 1000000) // Sonnet: $15.00 per million output tokens
+        ? (usage.output_tokens * 1.25 / 1000000)  // Haiku 3: $1.25 per million output tokens  
+        : (usage.output_tokens * 15.00 / 1000000) // Sonnet: $15.00 per million output tokens
       
       const totalCost = inputCost + cacheWriteCost + cacheReadCost + outputCost
       
       // Enhanced logging with cache information
       console.log(`📊 Claude ${modelInfo} Usage:`)
-      console.log(`   Input: ${input_tokens} tokens ($${inputCost.toFixed(6)})`)
-      if (cache_creation_input_tokens) {
-        console.log(`   💾 Cache Write: ${cache_creation_input_tokens} tokens ($${cacheWriteCost.toFixed(6)})`)
+      console.log(`   Input: ${usage.input_tokens} tokens ($${inputCost.toFixed(6)})`)
+      if (usage.cache_creation_input_tokens) {
+        console.log(`   💾 Cache Write: ${usage.cache_creation_input_tokens} tokens ($${cacheWriteCost.toFixed(6)})`)
       }
-      if (cache_read_input_tokens) {
-        console.log(`   💰 Cache Hit: ${cache_read_input_tokens} tokens ($${cacheReadCost.toFixed(6)}) - 90% savings!`)
+      if (usage.cache_read_input_tokens) {
+        console.log(`   💰 Cache Hit: ${usage.cache_read_input_tokens} tokens ($${cacheReadCost.toFixed(6)}) - 90% savings!`)
       }
-      console.log(`   Output: ${output_tokens} tokens ($${outputCost.toFixed(6)})`)
-      console.log(`   Total: ${input_tokens + output_tokens} tokens ($${totalCost.toFixed(6)})`)
-      console.log(`   Duration: ${duration}ms`)
+      console.log(`   Output: ${usage.output_tokens} tokens ($${outputCost.toFixed(6)})`)
+      console.log(`   Total: ${usage.input_tokens + usage.output_tokens} tokens ($${totalCost.toFixed(6)})`)
+      console.log(`   Duration: ${endTime - startTime}ms`)
       
       // Log session totals every 5 calls
       if (this.sessionTokens[modelType].calls % 5 === 0) {
@@ -342,62 +381,27 @@ export class ClaudeApiService {
     }
   }
 
-  // FIXED: Proper prompt caching implementation for Haiku 3
   async getCharacterAction(context, useComplexModel = false) {
+    const staticContext = this.buildStaticCharacterContext(context.character);
+    const dynamicContext = this.buildDynamicContext(context);
+    const fullPrompt = `${staticContext}\n${dynamicContext}`;
+
+    const requestBody = {
+      max_tokens: 1000,
+      system: SYSTEM_PROMPT,
+      messages: [{
+        role: "user",
+        content: fullPrompt
+      }]
+    };
+
     try {
-      console.log(`🧠 Getting character action for ${context.character.name} using ${useComplexModel ? 'Sonnet' : 'Haiku'}`)
-      
-      const character = context.character
-      
-      // Build comprehensive static character context (for caching)
-      const staticCharacterContext = this.buildStaticCharacterContext(character)
-      
-      // Build dynamic situational context
-      const dynamicContext = this.buildDynamicContext(context)
-      
-      // Ensure we meet Haiku 3's 2048 token minimum for caching
-      const estimatedStaticTokens = this.estimateTokens(staticCharacterContext)
-      const estimatedSystemTokens = this.estimateTokens(SYSTEM_PROMPT)
-      
-      console.log(`📏 Estimated tokens - System: ${estimatedSystemTokens}, Static: ${estimatedStaticTokens}`)
-      
-      // Structure the request with proper caching breakpoints
-      const requestBody = {
-        max_tokens: 1000,
-        system: [
-          {
-            type: "text",
-            text: SYSTEM_PROMPT,
-            cache_control: { type: "ephemeral" }  // Cache system prompt
-          }
-        ],
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: staticCharacterContext,
-                cache_control: { type: "ephemeral" }  // Cache character context
-              },
-              {
-                type: "text",
-                text: dynamicContext  // Dynamic content - not cached
-              }
-            ]
-          }
-        ]
-      }
-      
-      const response = await this.makeApiCall(requestBody, useComplexModel)
-      const responseText = response.content[0].text.trim()
-      
-      // FIXED: Use helper function to extract JSON from markdown-wrapped responses
-      return this.extractJsonFromResponse(responseText)
-      
+      const response = await this.makeApiCall(requestBody, useComplexModel);
+      const responseText = response.content[0].text.trim();
+      return this.extractJsonFromResponse(responseText);
     } catch (error) {
-      console.error(`Error getting character action for ${context.character.name}:`, error)
-      throw error
+      console.error(`Error getting character action for ${context.character.name}:`, error);
+      throw error;
     }
   }
 
@@ -447,7 +451,8 @@ CORE IDENTITY:
       character.relationships.forEach(rel => {
         const type = rel.type ? ` (${rel.type})` : ''
         const notes = rel.notes ? ` - ${rel.notes}` : ''
-        context += `- ${rel.name}${type}${notes}\n`
+        const affinity = rel.affinity ? ` | Affinity: ${rel.affinity}` : ''
+        context += `- ${rel.name}${type}${affinity}${notes}\n`
       })
     }
 
@@ -463,9 +468,19 @@ CORE IDENTITY:
 - Current Location: ${context.currentLocation || 'Unknown'}
 - Environment: ${context.environment?.description || 'Normal day'}`
 
+    // **NEW: Add conversation response priority context**
+    if (context.conversationResponsePriority) {
+      dynamicPrompt += `\n${context.conversationResponsePriority}`
+    }
+
     // Add nearby characters - FIXED: nearbyCharacters is already a formatted string, not an array
     if (context.nearbyCharacters && context.nearbyCharacters.length > 0) {
       dynamicPrompt += `\n- Nearby Characters: ${context.nearbyCharacters}`
+    }
+
+    // **NEW: Add ongoing conversation context**
+    if (context.ongoingConversation) {
+      dynamicPrompt += `\n${context.ongoingConversation}`
     }
 
     // Add scenario injection if present
@@ -491,6 +506,11 @@ Respond authentically as ${character.name} to this scenario. Show realistic emot
       }
     }
 
+    // Add memory summary
+    if (context.memorySummary) {
+      dynamicPrompt += `\n\nRECENT EXPERIENCE SUMMARY:\n${context.memorySummary}\n`
+    }
+
     // Add available zones if needed for movement
     if (context.availableZones) {
       dynamicPrompt += `\n- Available Locations: ${context.availableZones}`
@@ -499,7 +519,7 @@ Respond authentically as ${character.name} to this scenario. Show realistic emot
     return dynamicPrompt
   }
 
-  async summarizeMemories(memories, characterName, useComplexModel = false) {
+  async summarizeMemories(memories, characterName, useComplexModel = true) {
     if (!memories || memories.length === 0) return null
 
     const prompt = `Please create a concise summary of ${characterName}'s key memories and experiences. Focus on the most emotionally significant events and relationships.
@@ -522,98 +542,33 @@ Provide a 2-3 sentence summary that captures the essence of their experiences.`
     }
   }
 
-  // Simplified buildPrompt method for backward compatibility
-  buildPrompt(context) {
-    const character = context.character
-    
-    let prompt = `You are ${character.name}, a character in a life simulation.
+  async consolidateMemories(memories, characterName, useComplexModel = true) {
+    if (!memories || memories.length === 0) return null;
 
-PERSONALITY & TRAITS:
-- MBTI: ${character.MBTI}
-- Current Emotion: ${character.currentEmotion || 'neutral'}
-- Age: ${character.age || 'unknown'}
-- Occupation: ${character.occupation || 'unknown'}`
+    const prompt = `You are a memory consolidation module for an AI character named ${characterName}. Your task is to process a list of recent, raw memories and distill them into a single, cohesive, and meaningful long-term memory. This new memory should capture the essence of the experiences, identifying key themes, emotional shifts, and significant events.
 
-    // Add Big Five personality traits if available
-    if (character.bigFive) {
-      prompt += `\nBig Five Traits:\n`
-      Object.entries(character.bigFive).forEach(([trait, value]) => {
-        prompt += `- ${trait}: ${value}/100\n`
-      })
-    }
+Recent memories to process:
+${memories.map(m => `- [Impact: ${m.emotional_weight || 0}] ${m.content}`).join('\n')}
 
-    // Add current situation
-    prompt += `\nCURRENT SITUATION:
-- Location: ${context.currentLocation || 'Unknown'}
-- Environment: ${context.environment?.description || 'Normal day'}`
+Based on these events, generate a single, insightful long-term memory summary. Identify the primary emotional tone and up to three relevant tags for the consolidated memory.
 
-    // Add nearby characters if any
-    if (context.nearbyCharacters) {
-      prompt += `\n- Nearby characters: ${context.nearbyCharacters}`
-    }
-
-    // Add ALL memories (don't truncate!)
-    if (character.memories && character.memories.length > 0) {
-      prompt += `\n\nMEMORIES:\n${character.memories.map(m => `- ${m.content}`).join('\n')}`
-    }
-
-    // Add scenario injection if present
-    if (context.injectedScenario) {
-      prompt += `\n\n🎬 SCENARIO EVENT: ${context.injectedScenario.content}`
-      if (context.injectedScenario.target === 'global') {
-        prompt += ` (This affects everyone in the town)`
-      }
-    }
-
-    // Add desires and goals
-    if (character.desires && character.desires.length > 0) {
-      prompt += `\n\nYOUR DESIRES & GOALS:\n${character.desires.map(d => `- ${d}`).join('\n')}`
-    }
-
-    // Add mental health context
-    if (character.mentalHealth && character.mentalHealth.length > 0) {
-      prompt += `\n\nMENTAL HEALTH:\n${character.mentalHealth.map(m => `- ${m}`).join('\n')}`
-    }
-
-    // Add recent events for context
-    if (context.recentEvents) {
-      prompt += `\n\nRECENT TOWN EVENTS:\n${context.recentEvents}`
-    }
-
-    // Add available zones for movement
-    if (context.availableZones) {
-      prompt += `\n\nAVAILABLE LOCATIONS: ${context.availableZones}`
-    }
-
-    // Main instruction
-    prompt += `\n\nRespond as ${character.name} with realistic, human-like behavior. Consider your personality, current situation, and emotional state.
-
-Respond with valid JSON in this exact format:
+Respond in the following JSON format:
 {
-  "internal_thoughts": "What you're thinking about right now (1-2 sentences)",
-  "emotion": "Your current emotional state (e.g., content, happy, contemplative, etc.)",
-  "action": "One of: stay_idle, move_to_zone, speak, approach_character",
-  "dialogue": "What you say (if action is 'speak', otherwise empty string)",
-  "action_reasoning": "Brief explanation of why you chose this action"
+  "consolidated_memory": "A 2-3 sentence narrative summary of the key events and feelings from this period.",
+  "primary_emotion": "The dominant emotion for this consolidated memory (e.g., 'reflective', 'joyful', 'anxious').",
+  "tags": ["tag1", "tag2", "tag3"]
 }`
 
-    return prompt
-  }
-
-  async testConnection() {
     try {
-      console.log('🧪 Testing Claude API connection with Haiku model...')
       const response = await this.makeApiCall({
-        max_tokens: 10,
-        messages: [{ role: 'user', content: 'Respond with exactly: "API connection successful"' }]
-      }, false)
-      
-      const responseText = response.content[0].text.trim()
-      console.log('✅ Claude API test response:', responseText)
-      return responseText.includes('API connection successful')
+        max_tokens: 300,
+        messages: [{ role: 'user', content: prompt }]
+      }, useComplexModel);
+
+      return this.extractJsonFromResponse(response.content[0].text.trim());
     } catch (error) {
-      console.error('❌ Claude API test failed:', error)
-      throw error
+      console.error('Memory consolidation API call failed:', error);
+      return null;
     }
   }
 
@@ -700,6 +655,21 @@ Respond with a JSON array like this:
       return response.content[0].text.trim()
     } catch (error) {
       console.error('❌ Complex analysis failed:', error)
+      throw error
+    }
+  }
+
+  async testConnection() {
+    try {
+      const response = await this.makeApiCall({
+        max_tokens: 10,
+        messages: [{ role: 'user', content: 'Respond with exactly: "API connection successful"' }]
+      }, false)
+      
+      const responseText = response.content[0].text.trim()
+      return responseText.includes('API connection successful')
+    } catch (error) {
+      console.error('❌ Claude API test failed:', error)
       throw error
     }
   }

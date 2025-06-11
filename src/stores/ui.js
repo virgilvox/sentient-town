@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import claudeApi from '@/services/claudeApi'
+import claudeApi from '../services/claudeApi.js'
 
 export const useUIStore = defineStore('ui', () => {
   // State
@@ -54,10 +54,6 @@ export const useUIStore = defineStore('ui', () => {
   // Actions
   function selectCharacter(characterId) {
     selectedCharacterId.value = characterId
-    // Auto-switch to introspection tab if character is selected and we're not on a specific tab
-    if (characterId && activeTab.value === 'character-editor') {
-      activeTab.value = 'introspection'
-    }
     saveToLocalStorage()
   }
 

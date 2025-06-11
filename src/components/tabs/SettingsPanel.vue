@@ -61,6 +61,86 @@
         </div>
       </div>
 
+      <!-- Model Configuration -->
+      <div class="section">
+        <h4>🤖 AI Model Configuration</h4>
+        <p class="help-text">Configure which Claude models to use for different simulation tasks</p>
+        
+        <div class="model-settings">
+          <div class="model-setting">
+            <label for="simulation-model">Primary Simulation Model:</label>
+            <select 
+              id="simulation-model" 
+              v-model="selectedSimulationModel" 
+              @change="updateSimulationModel"
+              class="model-select"
+            >
+              <option value="haiku">Claude 3 Haiku (Fast, $0.25/$1.25 per M tokens)</option>
+              <option value="sonnet">Claude 3.5 Sonnet (Intelligent, $3/$15 per M tokens)</option>
+              <option value="adaptive">Adaptive (Smart model selection)</option>
+            </select>
+            <p class="model-description">
+              <span v-if="selectedSimulationModel === 'haiku'">
+                🚀 <strong>Haiku:</strong> Fast responses, great for frequent character interactions
+              </span>
+              <span v-else-if="selectedSimulationModel === 'sonnet'">
+                🧠 <strong>Sonnet:</strong> More sophisticated reasoning, better for complex conversations
+              </span>
+              <span v-else>
+                🎯 <strong>Adaptive:</strong> Uses Haiku for routine actions, Sonnet for important conversations
+              </span>
+            </p>
+          </div>
+
+          <div class="conversation-settings">
+            <div class="setting-row">
+              <label for="conversation-frequency">Conversation Frequency:</label>
+              <div class="slider-container">
+                <input 
+                  type="range" 
+                  id="conversation-frequency"
+                  v-model="conversationFrequency" 
+                  @input="updateConversationSettings"
+                  min="1" 
+                  max="10" 
+                  class="frequency-slider"
+                />
+                <div class="slider-labels">
+                  <span>Rare</span>
+                  <span class="current-value">{{ getFrequencyLabel(conversationFrequency) }}</span>
+                  <span>Frequent</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="setting-row">
+              <label for="context-mode">Context Complexity:</label>
+              <select 
+                id="context-mode" 
+                v-model="contextMode" 
+                @change="updateConversationSettings"
+                class="context-select"
+              >
+                <option value="minimal">Minimal - Basic info only</option>
+                <option value="standard">Standard - Core memories and relationships</option>
+                <option value="rich">Rich - Full context with detailed memories</option>
+              </select>
+            </div>
+
+            <div class="setting-row">
+              <label class="checkbox-label">
+                <input 
+                  type="checkbox" 
+                  v-model="enablePromptCaching" 
+                  @change="updateConversationSettings"
+                />
+                Enable Prompt Caching (90% cost savings, may reduce variety)
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Quick Reset Actions -->
       <div class="section danger-section">
         <h4>🔄 Quick Reset Actions</h4>
@@ -224,6 +304,29 @@
               @change="updateDebugMode"
               class="setting-checkbox"
             />
+          </div>
+
+          <div class="setting-item">
+            <label for="global-memory-management">Enable Automatic Global Memory Consolidation:</label>
+            <input
+              type="checkbox"
+              id="global-memory-management"
+              v-model="enableGlobalMemoryManagement"
+              @change="updateGlobalMemoryManagement"
+              class="setting-checkbox"
+            />
+          </div>
+        </div>
+      </div>
+
+      <!-- Memory Management Settings -->
+      <div class="section">
+        <h4>🧠 Memory Management</h4>
+        <div class="system-settings">
+          <div class="setting-item">
+            <p class="help-text">
+              When enabled, the simulation will automatically "dream" for all characters every 50 ticks, consolidating recent memories into a long-term summary to improve performance and narrative cohesion.
+            </p>
           </div>
         </div>
       </div>
@@ -408,6 +511,13 @@ const openaiApiKey = ref('')
 const claudeKeyStatus = ref('none')
 const openaiKeyStatus = ref('none')
 const isTestingClaude = ref(false)
+const enableGlobalMemoryManagement = ref(true)
+
+// Model configuration settings  
+const selectedSimulationModel = ref('adaptive')
+const conversationFrequency = ref(5)
+const contextMode = ref('standard')
+const enablePromptCaching = ref(true)
 
 // Data counts for display
 const characterDataCount = computed(() => {
@@ -458,6 +568,33 @@ function formatStorageSize(bytes) {
   const sizes = ['B', 'KB', 'MB', 'GB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`
+}
+
+// Model configuration helpers
+function getFrequencyLabel(value) {
+  const labels = ['Very Rare', 'Rare', 'Low', 'Normal', 'Active', 'High', 'Very High', 'Frequent', 'Very Frequent', 'Constant']
+  return labels[value - 1] || 'Normal'
+}
+
+function updateSimulationModel() {
+  localStorage.setItem('meadowloop-simulation-model', selectedSimulationModel.value)
+  // Store the model selection globally for the simulation engine to use
+  window.meadowLoopSettings = window.meadowLoopSettings || {}
+  window.meadowLoopSettings.simulationModel = selectedSimulationModel.value
+  console.log('🤖 Updated simulation model to:', selectedSimulationModel.value)
+}
+
+function updateConversationSettings() {
+  const settings = {
+    frequency: conversationFrequency.value,
+    contextMode: contextMode.value,
+    enablePromptCaching: enablePromptCaching.value,
+    model: selectedSimulationModel.value
+  }
+  localStorage.setItem('meadowloop-conversation-settings', JSON.stringify(settings))
+  window.meadowLoopSettings = window.meadowLoopSettings || {}
+  window.meadowLoopSettings.conversationSettings = settings
+  console.log('💬 Updated conversation settings:', settings)
 }
 
 // Quick reset actions
@@ -677,6 +814,13 @@ function updateDebugMode() {
   console.log('Debug mode:', debugMode.value)
 }
 
+function updateGlobalMemoryManagement() {
+  const settings = getSettings();
+  settings.enableGlobalMemoryManagement = enableGlobalMemoryManagement.value;
+  localStorage.setItem('meadowloop-conversation-settings', JSON.stringify(settings));
+  console.log('Global memory management enabled:', enableGlobalMemoryManagement.value);
+}
+
 // Import/Export
 function exportAllData() {
   const allData = {
@@ -697,6 +841,14 @@ function exportAllData() {
   a.download = `meadowloop-complete-export-${new Date().toISOString().split('T')[0]}.json`
   a.click()
   URL.revokeObjectURL(url)
+
+  // Load global memory management setting
+  try {
+    const settings = getSettings();
+    enableGlobalMemoryManagement.value = settings.enableGlobalMemoryManagement !== false; // Default to true
+  } catch (error) {
+    console.warn('Failed to load memory management settings:', error);
+  }
 }
 
 function triggerImport() {
@@ -879,7 +1031,8 @@ function saveSettings() {
     claudeApiKey: claudeApiKey.value,
     openaiApiKey: openaiApiKey.value,
     claudeKeyStatus: claudeKeyStatus.value,
-    openaiKeyStatus: openaiKeyStatus.value
+    openaiKeyStatus: openaiKeyStatus.value,
+    enableGlobalMemoryManagement: enableGlobalMemoryManagement.value
   }
   
   localStorage.setItem('meadowloopSettings', JSON.stringify(settings))
@@ -936,10 +1089,39 @@ onMounted(() => {
       const settings = JSON.parse(saved)
       performanceMode.value = settings.performanceMode || 'balanced'
       debugMode.value = settings.debugMode || false
+      enableGlobalMemoryManagement.value = settings.enableGlobalMemoryManagement !== false; // Default to true
       // Don't load API keys from settings, check stores instead
     }
   } catch (error) {
     console.warn('Failed to load settings:', error)
+  }
+
+  // Load model configuration settings
+  try {
+    const modelSetting = localStorage.getItem('meadowloop-simulation-model')
+    if (modelSetting) {
+      selectedSimulationModel.value = modelSetting
+    }
+    
+    const conversationSettings = localStorage.getItem('meadowloop-conversation-settings')
+    if (conversationSettings) {
+      const parsed = JSON.parse(conversationSettings)
+      conversationFrequency.value = parsed.frequency || 5
+      contextMode.value = parsed.contextMode || 'standard'
+      enablePromptCaching.value = parsed.enablePromptCaching !== false
+    }
+    
+    // Store settings globally for simulation engine
+    window.meadowLoopSettings = window.meadowLoopSettings || {}
+    window.meadowLoopSettings.simulationModel = selectedSimulationModel.value
+    window.meadowLoopSettings.conversationSettings = {
+      frequency: conversationFrequency.value,
+      contextMode: contextMode.value,
+      enablePromptCaching: enablePromptCaching.value,
+      model: selectedSimulationModel.value
+    }
+  } catch (error) {
+    console.warn('Failed to load model configuration:', error)
   }
 })
 </script>
@@ -1335,6 +1517,123 @@ onMounted(() => {
   color: #6c757d;
   font-size: 14px;
   line-height: 1.5;
+}
+
+/* Model Configuration Styles */
+.model-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.model-setting {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.model-setting label {
+  font-weight: 600;
+  color: #495057;
+  font-size: 14px;
+}
+
+.model-select, .context-select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  font-size: 14px;
+  background: white;
+  color: #495057;
+}
+
+.model-description {
+  margin: 8px 0 0 0;
+  padding: 10px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.conversation-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border: 1px solid #e9ecef;
+}
+
+.setting-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.setting-row label {
+  font-weight: 500;
+  color: #495057;
+  font-size: 14px;
+}
+
+.slider-container {
+  margin-top: 8px;
+}
+
+.frequency-slider {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: #e9ecef;
+  outline: none;
+  -webkit-appearance: none;
+}
+
+.frequency-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #667eea;
+  cursor: pointer;
+}
+
+.frequency-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #667eea;
+  cursor: pointer;
+  border: none;
+}
+
+.slider-labels {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+  font-size: 12px;
+  color: #6c757d;
+}
+
+.current-value {
+  font-weight: bold;
+  color: #667eea;
+  background: #f8f9ff;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #495057;
+  cursor: pointer;
 }
 
 @media (max-width: 768px) {

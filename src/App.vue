@@ -14,13 +14,12 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 import TopNavigationBar from '@/components/TopNavigationBar.vue'
 import TownCanvas from '@/components/TownCanvas.vue'
 import ControlPanel from '@/components/ControlPanel.vue'
 import { useCharactersStore, useZonesStore, useUIStore, useSimulationStore } from '@/stores'
 import { simulationEngine } from './services/simulationEngine'
-import { openAIAssets } from './services/openAiAssets'
 
 // Template refs
 const townCanvasRef = ref(null)
@@ -31,77 +30,55 @@ const zones = useZonesStore()
 const ui = useUIStore()
 const simulation = useSimulationStore()
 
-onMounted(async () => {
-  console.log('🎬 App component mounted')
-  
-  // Initialize stores in proper order with retries
-  await initializeStores()
-})
+const isLoading = ref(true)
 
-async function initializeStores() {
+onMounted(async () => {
   try {
-    console.log('🔄 Initializing stores...')
+    
+    // Initialize stores in proper order with dependencies
     
     // Initialize zones first (dependencies for characters)
     await zones.initializeStore()
-    console.log('✅ Zones store initialized')
     
     // Initialize characters (depends on zones)
     await characters.initializeStore()
-    console.log('✅ Characters store initialized')
     
     // Initialize simulation (depends on characters and zones)
     await simulation.initializeStore()
-    console.log('✅ Simulation store initialized')
     
-    // Initialize UI last
-    await ui.initializeStore()
-    console.log('✅ UI store initialized')
+    // Initialize UI store
+    ui.initializeStore()
     
-    console.log('✅ All stores initialized successfully')
+    // Wait for next tick to ensure all stores are ready
+    await nextTick()
     
-    // Set up simulation engine with stores
-    console.log('🔧 Setting up simulation engine...')
+    // Initialize and configure simulation engine with all stores
     simulationEngine.setStores({
-      characters: characters,
-      simulation: simulation,
-      zones: zones,
-      ui: ui
+      characters,
+      simulation,
+      zones,
+      ui
     })
     
     // Check if simulation should auto-start
     if (simulation.state.isRunning) {
-      console.log('▶️ Auto-starting simulation (was previously running)...')
-      simulationEngine.start()
+      await simulationEngine.start()
     } else {
-      console.log('⏸️ Simulation is ready to be started manually')
-      console.log('💡 Click the Start button in the top navigation to begin')
     }
     
-    // Test Claude API connection if key is available
-    if (ui.claudeApiKey) {
-      console.log('🔍 Testing Claude API connection...')
-      await simulationEngine.testClaudeConnection()
-    } else {
-      console.log('⚠️ No Claude API key found - simulation will need API key to generate conversations')
-    }
-    
-    // Log system status
-    console.log('📊 System Status:')
-    console.log(`  Characters loaded: ${characters.charactersList.length}`)
-    console.log(`  Zones loaded: ${zones.zones.length}`)
-    console.log(`  Simulation running: ${simulationEngine.running}`)
-    console.log(`  Claude API key: ${ui.claudeApiKey ? 'Present' : 'Missing'}`)
+    isLoading.value = false
     
   } catch (error) {
-    console.error('❌ Error initializing stores:', error)
+    console.error('❌ Failed to initialize app:', error)
+    isLoading.value = false
+    
     // Retry after a delay
-    setTimeout(() => {
-      console.log('🔄 Retrying store initialization...')
-      initializeStores()
-    }, 1000)
+    // setTimeout(() => {
+    //   console.log('🔄 Retrying app initialization...')
+    //   location.reload()
+    // }, 3000)
   }
-}
+})
 </script>
 
 <style>

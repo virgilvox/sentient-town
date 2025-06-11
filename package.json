@@ -12,12 +12,14 @@
     "generate-assets": "node scripts/generateAssets.js",
     "generate-map": "node scripts/generateAssets.js --map-only",
     "optimize-audio": "node scripts/optimizeAudio.js",
-    "compress-audio": "node scripts/compressAudio.js"
+    "compress-audio": "node scripts/compressAudio.js",
+    "test:simulation": "node scripts/run-simulation-test.js"
   },
   "dependencies": {
     "canvas": "^3.1.0",
     "dotenv": "^16.5.0",
     "node-fetch": "^3.3.2",
+    "node-localstorage": "^3.0.5",
     "pinia": "^3.0.1",
     "vue": "^3.5.13"
   },
@@ -29,6 +31,8 @@
     "npm-run-all2": "^7.0.2",
     "prettier": "3.5.3",
     "vite": "^6.2.4",
-    "vite-plugin-vue-devtools": "^7.7.2"
+    "vite-plugin-vue-devtools": "^7.7.2",
+    "eslint-config-prettier": "^8.7.0",
+    "eslint-plugin-prettier": "^4.2.1"
   }
 }

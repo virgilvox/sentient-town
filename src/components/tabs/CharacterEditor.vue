@@ -323,6 +323,17 @@
                     <option value="enemy">Enemy</option>
                     <option value="complicated">It's Complicated</option>
                   </select>
+                  <input
+                    type="range"
+                    v-model="relationship.affinity"
+                    @change="saveChanges"
+                    min="-100"
+                    max="100"
+                    class="affinity-slider"
+                  />
+                  <span class="affinity-value" :class="getAffinityClass(relationship.affinity)">
+                    {{ relationship.affinity }}
+                  </span>
                   <button @click="removeRelationship(index)" class="remove-btn">❌</button>
                 </div>
                 <div class="relationship-notes">
@@ -460,6 +471,12 @@
                 </button>
                 <button @click="sortMemoriesByTime" class="sort-btn">
                   🕒 Sort by Time
+                </button>
+                <button @click="consolidateMemories" class="action-btn consolidate-btn" :disabled="isConsolidating">
+                  🧠 Consolidate Memories
+                </button>
+                <button @click="clearCharacterMemories" class="action-btn clear-btn">
+                  🗑️ Clear Memories
                 </button>
               </div>
             </div>
@@ -679,13 +696,13 @@ const selectedCharacter = computed(() =>
 const characterDetailRef = ref(null)
 
 // Update the currentCharacter ref when GLOBAL selection changes
-watch(() => ui.selectedCharacterId, (newId) => {
-  if (newId && characters.getCharacter(newId)) {
-    currentCharacter.value = { ...characters.getCharacter(newId) }
+watch(selectedCharacter, (newChar) => {
+  if (newChar) {
+    currentCharacter.value = JSON.parse(JSON.stringify(newChar));
   } else {
-    currentCharacter.value = null
+    currentCharacter.value = null;
   }
-}, { immediate: true })
+}, { deep: true, immediate: true });
 
 function loadCharacter() {
   if (localSelectedCharacterId.value) {
@@ -770,9 +787,25 @@ function removeMentalHealth(index) {
   }
 }
 
+function getAffinityClass(affinity) {
+  if (affinity >= 70) return 'affinity-high';
+  if (affinity >= 30) return 'affinity-good';
+  if (affinity <= -70) return 'affinity-low';
+  if (affinity <= -30) return 'affinity-bad';
+  return 'affinity-neutral';
+}
+
 function addRelationship() {
   if (currentCharacter.value) {
-    currentCharacter.value.relationships.push({ name: '', type: '', notes: '' })
+    if (!currentCharacter.value.relationships) {
+      currentCharacter.value.relationships = [];
+    }
+    currentCharacter.value.relationships.push({ 
+      name: '', 
+      type: '', 
+      notes: '',
+      affinity: 0 
+    });
   }
 }
 
@@ -1041,6 +1074,29 @@ async function createCharacter() {
     alert('Failed to create character. Please try again.')
   } finally {
     isCreating.value = false
+  }
+}
+
+function clearCharacterMemories() {
+  if (!currentCharacter.value) return;
+  if (confirm(`Are you sure you want to clear all ${currentCharacter.value.memories.length} memories for ${currentCharacter.value.name}?`)) {
+    characters.updateCharacter(currentCharacter.value.id, { memories: [] });
+  }
+}
+
+const isConsolidating = ref(false);
+async function consolidateMemories() {
+  if (!currentCharacter.value) return;
+  isConsolidating.value = true;
+  try {
+    const { simulationEngine } = await import('@/services/simulationEngine.js');
+    await simulationEngine.consolidateMemoriesForCharacter(currentCharacter.value.id);
+    // The watcher on selectedCharacter should update the UI automatically
+  } catch (error) {
+    console.error('Manual memory consolidation failed:', error);
+    alert('Failed to consolidate memories. See console for details.');
+  } finally {
+    isConsolidating.value = false;
   }
 }
 </script>
@@ -1649,7 +1705,8 @@ async function createCharacter() {
 }
 
 .relationship-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 1fr auto auto auto;
   gap: 10px;
   align-items: center;
 }
@@ -1671,8 +1728,28 @@ async function createCharacter() {
   background: white;
 }
 
+.affinity-slider {
+  width: 100%;
+}
+
+.affinity-value {
+  font-weight: bold;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  min-width: 30px;
+  text-align: center;
+}
+
+.affinity-high { background: #d4edda; color: #155724; }
+.affinity-good { background: #e3f2fd; color: #1565c0; }
+.affinity-neutral { background: #f8f9fa; color: #495057; }
+.affinity-bad { background: #fff3e0; color: #e65100; }
+.affinity-low { background: #f8d7da; color: #721c24; }
+
 .relationship-notes {
   margin-top: 4px;
+  grid-column: 1 / -1;
 }
 
 .relationship-notes-input {
@@ -2100,5 +2177,19 @@ async function createCharacter() {
   border: 1px solid #ddd;
   border-radius: 4px;
   font-size: 14px;
+}
+
+.consolidate-btn {
+  background: #667eea;
+  color: white;
+}
+
+.consolidate-btn:hover:not(:disabled) {
+  background: #5a67d8;
+}
+
+.clear-btn {
+  background: #ff6b6b;
+  color: white;
 }
 </style> 

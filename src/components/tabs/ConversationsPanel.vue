@@ -31,10 +31,39 @@
           <button @click="createTestConversation" class="test-button" title="Create test conversation">
             🧪 Test
           </button>
-          <button @click="groupCharactersTogether" class="group-button" title="Move all characters to same zone">
-            🏠 Group
+          <button @click="groupCharactersTogether" class="group-button" title="Gather characters together">
+            👥 Group
           </button>
         </div>
+      </div>
+    </div>
+
+    <!-- Conversation Tuning Controls -->
+    <div class="conversation-controls">
+      <h5>💬 Conversation Settings</h5>
+      <div class="control-group">
+        <label>Base Conversation Chance:</label>
+        <input 
+          type="range" 
+          min="0" 
+          max="100" 
+          v-model="conversationProbability"
+          @input="updateConversationSettings"
+          class="probability-slider"
+        />
+        <span class="probability-value">{{ conversationProbability }}%</span>
+      </div>
+      <div class="control-group">
+        <label>Join Conversation Chance:</label>
+        <input 
+          type="range" 
+          min="0" 
+          max="100" 
+          v-model="joinProbability"
+          @input="updateConversationSettings"
+          class="probability-slider"
+        />
+        <span class="probability-value">{{ joinProbability }}%</span>
       </div>
     </div>
 
@@ -46,8 +75,8 @@
         <!-- Debugging info -->
         <div style="margin-top: 20px; font-size: 12px; color: #666; background: #f0f0f0; padding: 10px; border-radius: 4px;">
           <div><strong>Debug Info:</strong></div>
-          <div>Total conversations in store: {{ simulation.conversations.length }}</div>
-          <div>Active conversations: {{ simulation.activeConversations.length }}</div>
+          <div>Total conversations in store: {{ simulationStore.conversations.length }}</div>
+          <div>Active conversations: {{ activeConversations.length }}</div>
           <div>Filtered conversations count: {{ filteredConversations.length }}</div>
           <div>Status filter: "{{ statusFilter }}"</div>
           <div>Character filter: "{{ characterFilter }}"</div>
@@ -160,12 +189,14 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, nextTick, watch, watchEffect } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useSimulationStore, useCharactersStore, useZonesStore } from '@/stores'
 
-const simulation = useSimulationStore()
+const simulationStore = useSimulationStore()
 const characters = useCharactersStore()
 const zones = useZonesStore()
+const { conversations, activeConversations } = storeToRefs(simulationStore)
 
 const statusFilter = ref('')
 const characterFilter = ref('')
@@ -173,39 +204,21 @@ const selectedConversationId = ref(null)
 const messagesListRef = ref(null)
 const expandedMessages = ref(new Set())
 
+// Conversation tuning controls
+const conversationProbability = ref(25) // Base chance for characters to start conversations
+const joinProbability = ref(35) // Chance for characters to join ongoing conversations
+
 const filteredConversations = computed(() => {
-  let conversations = [...simulation.conversations]
-  
-  // Filter by status - correctly detect active/ended conversations
-  if (statusFilter.value) {
-    conversations = conversations.filter(conversation => {
-      if (statusFilter.value === 'active') {
-        return conversation.isActive === true
-      } else if (statusFilter.value === 'ended') {
-        return conversation.isActive === false
-      }
-      return true
-    })
-  }
-  
-  // Filter by character
-  if (characterFilter.value) {
-    conversations = conversations.filter(conversation => 
-      conversation.participants.includes(characterFilter.value)
-    )
-  }
-  
-  // Sort by most recent activity
-  return conversations.sort((a, b) => {
-    const aTime = a.messages.length > 0 ? a.messages[a.messages.length - 1].timestamp : a.startTime
-    const bTime = b.messages.length > 0 ? b.messages[b.messages.length - 1].timestamp : b.startTime
-    return bTime - aTime
-  })
+  return conversations.value.filter(conv => {
+    const statusMatch = !statusFilter.value || (statusFilter.value === 'active' ? conv.isActive : !conv.isActive)
+    const characterMatch = !characterFilter.value || conv.participants.includes(characterFilter.value)
+    return statusMatch && characterMatch
+  }).sort((a, b) => b.startTime - a.startTime)
 })
 
 const selectedConversation = computed(() => {
   if (!selectedConversationId.value) return null
-  return simulation.conversations.find(conv => conv.id === selectedConversationId.value)
+  return conversations.value.find(conv => conv.id === selectedConversationId.value)
 })
 
 // Auto-scroll to bottom when new messages arrive in selected conversation
@@ -268,13 +281,13 @@ function closeModal() {
 function debugConversations() {
   console.log('=== COMPREHENSIVE CONVERSATION DEBUG ===')
   console.log('1. SIMULATION STORE STATE:')
-  console.log('   All conversations:', simulation.conversations)
-  console.log('   Active conversations:', simulation.activeConversations)
-  console.log('   Conversation count:', simulation.conversations.length)
-  console.log('   Active conversation count:', simulation.activeConversations.length)
+  console.log('   All conversations:', simulationStore.conversations)
+  console.log('   Active conversations:', activeConversations.value)
+  console.log('   Conversation count:', simulationStore.conversations.length)
+  console.log('   Active conversation count:', activeConversations.value.length)
   
   console.log('2. RAW CONVERSATION DATA:')
-  console.log('   Conversations array:', simulation.conversations.map(c => ({
+  console.log('   Conversations array:', simulationStore.conversations.map(c => ({
     id: c.id,
     participants: c.participants,
     participantCount: c.participants.length,
@@ -307,7 +320,6 @@ function debugConversations() {
   
   console.log('5. COMPUTED PROPERTIES:')
   console.log('   filteredConversations.value:', filteredConversations.value)
-  console.log('   displayedConversations.value:', displayedConversations.value)
   
   console.log('6. LOCALSTORAGE STATE:')
   const saved = localStorage.getItem('meadowloop-simulation')
@@ -331,7 +343,7 @@ function debugConversations() {
   }
   
   console.log('7. RECENT EVENTS CHECK:')
-  const recentEvents = simulation.recentEvents || simulation.events || []
+  const recentEvents = simulationStore.recentEvents || simulationStore.events || []
   const talkEvents = recentEvents.filter(e => e.type === 'conversation' || e.summary?.includes('talk') || e.summary?.includes(':'))
   console.log('   Total events:', recentEvents.length)
   console.log('   Talk/conversation events:', talkEvents.length)
@@ -343,12 +355,12 @@ function debugConversations() {
   })))
   
   console.log('8. SIMULATION ENGINE STATE:')
-  console.log('   Simulation running:', simulation.state?.isRunning)
-  console.log('   Current tick:', simulation.state?.currentTick)
-  console.log('   Last update:', simulation.state?.lastUpdateTime ? new Date(simulation.state.lastUpdateTime).toLocaleString() : 'N/A')
+  console.log('   Simulation running:', simulationStore.state?.isRunning)
+  console.log('   Current tick:', simulationStore.state?.currentTick)
+  console.log('   Last update:', simulationStore.state?.lastUpdateTime ? new Date(simulationStore.state.lastUpdateTime).toLocaleString() : 'N/A')
   
   console.log('9. DEBUGGING RECOMMENDATIONS:')
-  if (simulation.conversations.length === 0) {
+  if (simulationStore.conversations.length === 0) {
     console.log('   🔍 NO CONVERSATIONS FOUND - Possible issues:')
     console.log('      - Characters may not be speaking during simulation')
     console.log('      - Speech processing may have errors')
@@ -356,14 +368,14 @@ function debugConversations() {
     console.log('      - LocalStorage may be getting cleared')
   }
   
-  if (talkEvents.length > 0 && simulation.conversations.length === 0) {
+  if (talkEvents.length > 0 && simulationStore.conversations.length === 0) {
     console.log('   🚨 CRITICAL: Talk events exist but no conversations!')
     console.log('      - This suggests conversation creation is failing')
     console.log('      - Check processSpeech method in simulation engine')
     console.log('      - Check addConversation method in simulation store')
   }
   
-  if (simulation.conversations.length > 0 && filteredConversations.value.length === 0) {
+  if (simulationStore.conversations.length > 0 && filteredConversations.value.length === 0) {
     console.log('   🔍 CONVERSATIONS EXIST BUT FILTERED OUT:')
     console.log('      - Check filter logic in computed property')
     console.log('      - Check character name matching')
@@ -379,16 +391,16 @@ function createTestConversation() {
     
     console.log('🧪 STARTING MANUAL CONVERSATION TEST')
     console.log('   Testing between:', char1.name, 'and', char2.name)
-    console.log('   Before test - conversation count:', simulation.conversations.length)
+    console.log('   Before test - conversation count:', simulationStore.conversations.length)
     
     try {
       console.log('   Step 1: Creating conversation...')
-      const conversationId = simulation.addConversation([char1.id, char2.id])
+      const conversationId = simulationStore.addConversation([char1.id, char2.id])
       console.log('   Step 1 result - conversation ID:', conversationId)
-      console.log('   Step 1 result - conversation count after creation:', simulation.conversations.length)
+      console.log('   Step 1 result - conversation count after creation:', simulationStore.conversations.length)
       
       console.log('   Step 2: Adding first message...')
-      simulation.addMessage(conversationId, {
+      simulationStore.addMessage(conversationId, {
         speakerId: char1.id,
         content: `Hello ${char2.name}! This is a test message to verify conversation functionality.`,
         emotion: 'friendly'
@@ -396,7 +408,7 @@ function createTestConversation() {
       console.log('   Step 2 complete - added message from', char1.name)
       
       console.log('   Step 3: Adding second message...')
-      simulation.addMessage(conversationId, {
+      simulationStore.addMessage(conversationId, {
         speakerId: char2.id,
         content: `Hi ${char1.name}! Great to talk to you. This conversation system test is working!`,
         emotion: 'happy'
@@ -404,7 +416,7 @@ function createTestConversation() {
       console.log('   Step 3 complete - added message from', char2.name)
       
       console.log('   Step 4: Verifying conversation state...')
-      const createdConversation = simulation.conversations.find(c => c.id === conversationId)
+      const createdConversation = simulationStore.conversations.find(c => c.id === conversationId)
       if (createdConversation) {
         console.log('   ✅ CONVERSATION SUCCESSFULLY CREATED:', {
           id: createdConversation.id,
@@ -445,58 +457,6 @@ function createTestConversation() {
   } else {
     console.log('🧪 Cannot run test - need at least 2 characters')
     alert('❌ Cannot run test: Need at least 2 characters to create a test conversation')
-  }
-}
-
-function groupCharactersTogether() {
-  if (characters.charactersList.length < 2) {
-    alert('Need at least 2 characters to group together')
-    return
-  }
-  
-  try {
-    // Get the first available zone or default to a safe center zone
-    const availableZones = zones?.zones || []
-    let targetZone = availableZones.length > 0 ? availableZones[0].id : 'town_center'
-    
-    console.log(`🏠 Grouping all characters in zone: ${targetZone}`)
-    
-    // Define safe center area of the map (assuming 50x37 tile map)
-    const mapWidth = 50
-    const mapHeight = 37
-    const centerX = Math.floor(mapWidth / 2)  // Around x=25
-    const centerY = Math.floor(mapHeight / 2) // Around y=18
-    
-    // Create a small cluster around the center, ensuring we stay within bounds
-    const maxRadius = Math.min(5, Math.floor(Math.sqrt(characters.charactersList.length)))
-    
-    characters.charactersList.forEach((character, index) => {
-      // Arrange characters in a small spiral pattern around center
-      const angle = (index * 2 * Math.PI) / Math.max(characters.charactersList.length, 6)
-      const radius = Math.min(maxRadius, 1 + Math.floor(index / 6))
-      
-      const offsetX = Math.round(radius * Math.cos(angle))
-      const offsetY = Math.round(radius * Math.sin(angle))
-      
-      // Calculate final position, ensuring it stays within map bounds
-      const finalX = Math.max(2, Math.min(mapWidth - 3, centerX + offsetX))
-      const finalY = Math.max(2, Math.min(mapHeight - 3, centerY + offsetY))
-      
-      const groupPosition = {
-        x: finalX,
-        y: finalY,
-        zone: targetZone
-      }
-      
-      console.log(`📍 Moving ${character.name} to safe position (${finalX}, ${finalY}) in zone ${targetZone}`)
-      characters.moveCharacter(character.id, groupPosition)
-    })
-    
-    alert(`Grouped ${characters.charactersList.length} characters together at map center (${centerX}, ${centerY})! They should now be able to interact.`)
-    
-  } catch (error) {
-    console.error('Failed to group characters:', error)
-    alert('Failed to group characters. Check console for details.')
   }
 }
 
@@ -557,6 +517,128 @@ function getPreviewText(conversation) {
   
   return `"${lastMessage.content.substring(0, maxLength)}..." (click conversation to see full)`
 }
+
+function groupCharactersTogether() {
+  try {
+    console.log('👥 Grouping characters together...')
+    
+    if (characters.charactersList.length === 0) {
+      console.warn('⚠️ No characters available to group')
+      return
+    }
+    
+    // Find a central location (center of map)
+    const centralX = 25 // Center of 50-wide map
+    const centralY = 18 // Center of 37-tall map
+    
+    // Group all living characters near the center
+    const livingCharacters = characters.charactersList.filter(c => !c.isDead)
+    
+    livingCharacters.forEach((character, index) => {
+      // Arrange characters in a rough circle around center
+      const angle = (index / livingCharacters.length) * 2 * Math.PI
+      const radius = 2 + Math.floor(index / 8) // Expand radius for more characters
+      
+      const newX = Math.max(1, Math.min(48, Math.round(centralX + Math.cos(angle) * radius)))
+      const newY = Math.max(1, Math.min(35, Math.round(centralY + Math.sin(angle) * radius)))
+      
+      characters.moveCharacter(character.id, {
+        x: newX,
+        y: newY,
+        zone: character.position.zone // Keep their current zone
+      })
+      
+      console.log(`👥 Moved ${character.name} to (${newX}, ${newY}) for group gathering`)
+    })
+    
+    console.log(`✅ Grouped ${livingCharacters.length} characters together at town center`)
+    
+    // Add a memory to each character about this gathering
+    livingCharacters.forEach(character => {
+      const gatheringMemory = {
+        id: `gathering_${Date.now()}_${character.id}`,
+        timestamp: Date.now(),
+        content: `Everyone gathered together at the town center. There were ${livingCharacters.length} of us present: ${livingCharacters.map(c => c.name).join(', ')}.`,
+        emotional_weight: 45,
+        tags: ['gathering', 'social', 'community']
+      }
+      
+      characters.addMemory(character.id, gatheringMemory)
+    })
+    
+    // Create a simulation event for this gathering
+    if (simulationStore.addEvent) {
+      simulationStore.addEvent({
+        type: 'gathering',
+        involvedCharacters: livingCharacters.map(c => c.id),
+        summary: `${livingCharacters.length} characters gathered together at the town center`,
+        tone: 'social',
+        details: {
+          event_type: 'manual_gathering',
+          participant_count: livingCharacters.length,
+          participants: livingCharacters.map(c => c.name).join(', '),
+          location: `${centralX}, ${centralY}`,
+          initiated_by: 'user'
+        }
+      })
+    }
+    
+  } catch (error) {
+    console.error('❌ Error grouping characters:', error)
+  }
+}
+
+function updateConversationSettings() {
+  try {
+    console.log('⚙️ Updating conversation settings:', {
+      baseProbability: conversationProbability.value,
+      joinProbability: joinProbability.value
+    })
+    
+    // Store settings in localStorage for persistence
+    const conversationSettings = {
+      baseProbability: conversationProbability.value,
+      joinProbability: joinProbability.value,
+      lastUpdated: Date.now()
+    }
+    
+    localStorage.setItem('meadowloop-conversation-settings', JSON.stringify(conversationSettings))
+    
+    // You could emit an event here or call a store method to update global settings
+    // For now, we'll just log that the settings have been updated
+    console.log('💾 Conversation settings saved to localStorage')
+    
+  } catch (error) {
+    console.error('❌ Error updating conversation settings:', error)
+  }
+}
+
+// Load conversation settings from localStorage on component mount
+onMounted(() => {
+  try {
+    const stored = localStorage.getItem('meadowloop-conversation-settings')
+    if (stored) {
+      const settings = JSON.parse(stored)
+      conversationProbability.value = settings.baseProbability || 25
+      joinProbability.value = settings.joinProbability || 35
+      console.log('💾 Loaded conversation settings:', settings)
+    }
+  } catch (error) {
+    console.warn('⚠️ Error loading conversation settings:', error)
+  }
+})
+
+// Watch for conversation updates and auto-scroll
+watch(
+  () => conversations.value?.length,
+  () => {
+    nextTick(() => {
+      if (messagesListRef.value) {
+        messagesListRef.value.scrollTop = messagesListRef.value.scrollHeight
+      }
+    })
+  }
+)
 </script>
 
 <style scoped>
@@ -615,7 +697,7 @@ function getPreviewText(conversation) {
   align-items: center;
 }
 
-.debug-button, .test-button, .group-button {
+.debug-button, .test-button {
   padding: 6px 12px;
   border: 1px solid #ced4da;
   border-radius: 4px;
@@ -633,11 +715,6 @@ function getPreviewText(conversation) {
 .test-button:hover {
   background: #e7f3ff;
   border-color: #667eea;
-}
-
-.group-button:hover {
-  background: #f0f9ff;
-  border-color: #22c55e;
 }
 
 .conversations-content {
@@ -925,5 +1002,50 @@ function getPreviewText(conversation) {
 .message-tone {
   font-size: 11px;
   color: #6c757d;
+}
+
+/* Conversation Tuning Controls */
+.conversation-controls {
+  padding: 20px;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.conversation-controls h5 {
+  margin: 0 0 15px 0;
+  color: #495057;
+}
+
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 15px;
+}
+
+.control-group label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #6c757d;
+  white-space: nowrap;
+}
+
+.probability-slider {
+  width: 100%;
+  height: 10px;
+  background: #e9ecef;
+  border-radius: 5px;
+  outline: none;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.probability-slider:hover {
+  opacity: 1;
+}
+
+.probability-value {
+  font-size: 12px;
+  font-weight: 500;
+  color: #495057;
 }
 </style> 

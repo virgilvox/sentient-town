@@ -80,7 +80,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick, watch, computed } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick, watch, computed, watchEffect } from 'vue'
 import { useCharactersStore, useZonesStore, useUIStore, useSimulationStore, useAssetStore } from '@/stores'
 
 // Store access
@@ -126,39 +126,23 @@ const showZoneCreator = ref(false)
 // Watch for character loading
 watch(() => characters.isLoaded, (newVal) => {
   if (newVal) {
-    console.log('✅ Characters loaded, initializing sprites and animations...')
     loadCharacterSprites()
     initializeCharacterAnimations()
-    // Force immediate render
-    nextTick(() => {
-      render()
-      console.log('🎨 Forced render after character loading')
-    })
-    // Also render after a short delay to ensure sprites are processed
-    setTimeout(() => {
-      render()
-      console.log('🎨 Secondary render for character sprites')
-    }, 150)
+    startRenderLoop() // Use unified render loop
   }
 }, { immediate: true })
 
 // Watch for character list changes 
 watch(() => characters.charactersList, (newList, oldList) => {
   if (newList && newList.length > 0 && characters.isLoaded) {
-    console.log('📋 Character list updated, refreshing sprites and animations...')
     loadCharacterSprites()
     initializeCharacterAnimations()
-    // Force immediate render
-    nextTick(() => {
-      render()
-      console.log('🎨 Forced render after character list update')
-    })
+    // Render loop will handle updates automatically
   }
 }, { immediate: true, deep: true })
 
 // Watch for edit mode changes to trigger re-render
 watch(() => ui.editMode, (newEditMode) => {
-  console.log('🔧 Edit mode changed to:', newEditMode)
   // Force canvas cursor update
   updateCanvasCursor()
   render()
@@ -166,7 +150,6 @@ watch(() => ui.editMode, (newEditMode) => {
 
 // Watch for active tab changes
 watch(() => ui.activeTab, (newTab) => {
-  console.log('🔧 Active tab changed to:', newTab)
   if (newTab === 'zone-editor') {
     canvasState.value.showGrid = true
     ui.editMode = true
@@ -177,73 +160,52 @@ watch(() => ui.activeTab, (newTab) => {
 
 // Watch for zone editing changes to trigger re-render
 watch(() => ui.editingZoneId, (newEditingZoneId) => {
-  console.log('🔧 Editing zone changed to:', newEditingZoneId)
   render()
 }, { immediate: true })
 
 // Watch for selected tiles changes to trigger re-render
 watch(() => ui.selectedTiles.size, (newSize) => {
-  console.log('🔧 Selected tiles count changed to:', newSize)
   render()
 }, { immediate: true })
 
+// Watch for character movement to trigger re-render
+watchEffect(() => {
+  // Force a re-render when any character moves
+  characters.charactersList.forEach(c => c.position.x + c.position.y)
+  render()
+})
+
 // Initialize canvas
 onMounted(async () => {
-  console.log('🏗️ TownCanvas mounting...')
   
   // Set up canvas
   ctx = canvasRef.value.getContext('2d')
   ctx.imageSmoothingEnabled = false
   
   // Initialize rendering state
-  console.log('🎯 Initializing canvas state...')
   updateCanvasSize()
   
   // Load all assets immediately
-  console.log('🎨 Loading initial assets...')
   await loadMapBackground()
   
-  // Force immediate character loading and rendering
-  if (characters.isLoaded) {
-    console.log('✅ Characters already loaded, initializing sprites...')
-    loadCharacterSprites()
-    initializeCharacterAnimations()
-    // Force render after short delay to ensure sprites are processed
-    setTimeout(() => {
-      render()
-      console.log('🎨 Initial render complete with characters')
-    }, 100)
-  } else {
-    console.log('⏳ Characters not loaded yet, will render when ready...')
-  }
-  
   // Set up event listeners
-  console.log('👂 Setting up event listeners...')
   window.addEventListener('resize', updateCanvasSize)
   
-  // Set up rendering loop for smooth animations
-  let animationId
-  const renderLoop = () => {
-    render()
-    animationId = requestAnimationFrame(renderLoop)
+  // **FIXED: Use single render loop instead of duplicate loops**
+  if (characters.isLoaded) {
+    loadCharacterSprites()
+    initializeCharacterAnimations()
+    startRenderLoop() // Use our unified render loop
+  } else {
   }
-  renderLoop()
   
-  onUnmounted(() => {
-    console.log('🧹 TownCanvas unmounting...')
-    window.removeEventListener('resize', updateCanvasSize)
-    if (animationId) {
-      cancelAnimationFrame(animationId)
-    }
-  })
-  
-  console.log('✅ TownCanvas mounted successfully')
 })
 
 onUnmounted(() => {
   if (animationFrameId.value) {
     cancelAnimationFrame(animationFrameId.value)
   }
+  window.removeEventListener('resize', updateCanvasSize)
 })
 
 // Canvas setup functions
@@ -263,7 +225,6 @@ function updateCanvasSize() {
   canvas.style.width = rect.width + 'px'
   canvas.style.height = rect.height + 'px'
   
-  console.log(`📐 Canvas sized to ${canvas.width}x${canvas.height}`)
 }
 
 function setupCanvasSize() {
@@ -282,7 +243,6 @@ function setupCanvasSize() {
   canvas.style.width = rect.width + 'px'
   canvas.style.height = rect.height + 'px'
   
-  console.log(`📐 Canvas sized to ${canvas.width}x${canvas.height}`)
 }
 
 function setupResizeObserver() {
@@ -300,10 +260,8 @@ async function loadMapBackground() {
   try {
     const customMapDataUrl = assetStore.customMap
     if (customMapDataUrl) {
-      console.log('🗺️ Loading custom map background from asset store...')
       mapImage.value = new Image()
       mapImage.value.onload = () => {
-        console.log('✅ Custom map loaded successfully')
         render()
       }
       mapImage.value.onerror = () => {
@@ -323,11 +281,9 @@ async function loadMapBackground() {
 }
 
 function loadDefaultMap() {
-  console.log('🗺️ Loading static map background...')
   mapImage.value = new Image()
   mapImage.value.crossOrigin = 'anonymous'
   mapImage.value.onload = () => {
-    console.log('✅ Static map background loaded successfully')
     render()
   }
   mapImage.value.onerror = () => {
@@ -339,8 +295,6 @@ function loadDefaultMap() {
 
 function createFallbackMap() {
   if (!ctx) return
-  
-  console.log('🎨 Creating fallback map...')
   
   // Store reference to avoid repeated null checks
   const context = ctx
@@ -393,15 +347,10 @@ function createFallbackMap() {
       )
     }
   })
-  
-  console.log('✅ Fallback map created')
 }
 
 function loadCharacterSprites() {
-  console.log('👥 Loading character sprites...')
-  
   if (!characters.isLoaded || characters.charactersList.length === 0) {
-    console.log('⏳ Waiting for characters to load before loading sprites...')
     return
   }
   
@@ -412,7 +361,6 @@ function loadCharacterSprites() {
       const sprite = new Image()
       sprite.onload = () => {
         characterSprites.value.set(character.id, sprite)
-        console.log(`✅ Loaded custom sprite for ${character.name} from asset store`)
         if (animationFrameId.value === null) startRenderLoop()
       }
       sprite.onerror = () => {
@@ -432,7 +380,6 @@ function loadDefaultSprite(character) {
     const sprite = new Image()
     sprite.onload = () => {
       characterSprites.value.set(character.id, sprite)
-      console.log(`✅ Loaded default sprite for ${character.name}`)
       if (animationFrameId.value === null) startRenderLoop()
     }
     sprite.onerror = () => {
@@ -441,7 +388,6 @@ function loadDefaultSprite(character) {
     }
     const spritePath = character.sprite || `/characters/${character.name}/sprite.png`
     sprite.src = spritePath
-    console.log(`🔄 Loading default sprite for ${character.name} from: ${spritePath}`)
   }
 }
 
@@ -449,7 +395,6 @@ function loadDefaultSprite(character) {
 function initializeCharacterAnimations() {
   // Only initialize if characters are loaded
   if (!characters.isLoaded || characters.charactersList.length === 0) {
-    console.log('⏳ Skipping character animation initialization - characters not loaded yet')
     return
   }
   
@@ -464,7 +409,6 @@ function initializeCharacterAnimations() {
       })
     }
   })
-  console.log('🎬 Character animations initialized for', characterAnimations.value.size, 'characters')
 }
 
 function updateCharacterAnimations() {
@@ -495,7 +439,6 @@ function updateCharacterAnimations() {
       animation.moveStartTime = now
       animation.moveDuration = 1500 // 1.5 seconds for movement
       needsUpdate = true
-      console.log(`🚶 ${character.name} starting move to (${character.position.x}, ${character.position.y})`)
     }
     
     // Update movement animation
@@ -518,7 +461,6 @@ function updateCharacterAnimations() {
       if (progress >= 1) {
         animation.currentPos = { ...animation.targetPos }
         animation.isMoving = false
-        console.log(`✅ ${character.name} completed move to destination`)
       }
       
       needsUpdate = true
@@ -528,20 +470,36 @@ function updateCharacterAnimations() {
   return needsUpdate
 }
 
+// **STREAMLINED: Single unified render loop**
 function startRenderLoop() {
+  let isRenderLoopRunning = false
+  
   function animate() {
-    const needsUpdate = updateCharacterAnimations()
+    if (isRenderLoopRunning) return // Prevent multiple loops
+    isRenderLoopRunning = true
     
-    // Only render when there are actual updates and throttle renders
-    const now = Date.now()
-    if (needsUpdate && (now - lastRenderTime > RENDER_THROTTLE)) {
-      render()
-      lastRenderTime = now
+    try {
+      const needsUpdate = updateCharacterAnimations()
+      
+      // Always render, but throttle frequency
+      const now = Date.now()
+      if (now - lastRenderTime > RENDER_THROTTLE) {
+        render()
+        lastRenderTime = now
+      }
+    } catch (error) {
+      console.error('❌ Error in render loop:', error)
+    } finally {
+      isRenderLoopRunning = false
     }
     
     animationFrameId.value = requestAnimationFrame(animate)
   }
-  animate()
+  
+  // Only start if not already running
+  if (!animationFrameId.value) {
+    animate()
+  }
 }
 
 // Rendering functions
@@ -761,80 +719,50 @@ function renderGrid() {
 
 function renderCharacters() {
   if (!characters.isLoaded || !characterAnimations.value.size) return
-  
   updateCharacterAnimations()
-  
   characters.charactersList.forEach(character => {
     if (!character || !character.position) return
-    
     const animation = characterAnimations.value.get(character.id)
     if (!animation) return
-    
     const sprite = characterSprites.value.get(character.id)
     const tileSize = zones.mapData.tileSize
-    
-    // Make characters much larger and more visible - use a proper character size
-    const characterSize = Math.max(tileSize * 3, 48) // At least 48px, or 3x tileSize
-    
-    // Use animated position for tile center
+    const characterSize = Math.max(tileSize * 3, 48)
     const tileX = animation.currentPos.x * tileSize
     const tileY = animation.currentPos.y * tileSize
-    
-    // Center the larger character sprite on the tile
     const x = tileX - (characterSize - tileSize) / 2
     const y = tileY - (characterSize - tileSize) / 2
-    
     ctx.save()
-    
+    // Restore: Render dead characters differently
     if (character.isDead) {
-      // Render dead characters differently
       ctx.globalAlpha = 0.3
       ctx.filter = 'grayscale(100%) brightness(0.7)'
     }
-    
     if (sprite) {
-      // Draw character sprite at the larger size
       ctx.drawImage(sprite, x, y, characterSize, characterSize)
     } else {
-      // Draw fallback representation at larger size
       ctx.fillStyle = character.isDead ? '#666666' : '#FF6B6B'
-      const fallbackSize = characterSize * 0.8 // Slightly smaller than full size
+      const fallbackSize = characterSize * 0.8
       const fallbackOffset = (characterSize - fallbackSize) / 2
       ctx.fillRect(x + fallbackOffset, y + fallbackOffset, fallbackSize, fallbackSize)
-      
-      // Draw character name
       ctx.fillStyle = character.isDead ? '#333333' : '#FFFFFF'
       ctx.font = `${Math.max(10, characterSize * 0.2)}px Arial`
       ctx.textAlign = 'center'
       ctx.fillText(character.name, x + characterSize/2, y + characterSize/2 + 3)
     }
-    
-    // Add death indicator for dead characters
+    // Restore: Add death indicator for dead characters
     if (character.isDead) {
       ctx.fillStyle = '#FFFFFF'
       ctx.font = `bold ${Math.max(16, characterSize * 0.33)}px Arial`
       ctx.textAlign = 'center'
       ctx.fillText('💀', x + characterSize/2, y - 5)
     }
-    
-    // Draw character emotion indicator
-    if (!character.isDead) {
-      const emotionColor = getEmotionColor(character.currentEmotion)
-      ctx.fillStyle = emotionColor
-      const emotionSize = Math.max(4, characterSize * 0.15)
-      ctx.beginPath()
-      ctx.arc(x + characterSize - emotionSize - 2, y + emotionSize + 2, emotionSize, 0, 2 * Math.PI)
-      ctx.fill()
-    }
-    
-    // Highlight hovered character
+    // Restore: Highlight hovered character
     if (hoveredCharacterId.value === character.id) {
       ctx.strokeStyle = '#FFD700'
       ctx.lineWidth = 3
       ctx.strokeRect(x - 2, y - 2, characterSize + 4, characterSize + 4)
     }
-    
-    // Highlight selected character  
+    // Restore: Highlight selected character
     if (selectedCharacterId.value === character.id) {
       ctx.strokeStyle = '#00FF00'
       ctx.lineWidth = 4
@@ -842,7 +770,6 @@ function renderCharacters() {
       ctx.strokeRect(x - 4, y - 4, characterSize + 8, characterSize + 8)
       ctx.setLineDash([]) // Reset line dash
     }
-    
     ctx.restore()
   })
 }
@@ -876,7 +803,6 @@ function updateCanvasCursor() {
   
   if (ui.editMode || ui.activeTab === 'zone-editor') {
     canvas.style.cursor = 'crosshair'
-    console.log('🎯 Set cursor to crosshair for edit mode')
   } else {
     canvas.style.cursor = isDragging.value ? 'grabbing' : 'grab'
   }
@@ -884,8 +810,6 @@ function updateCanvasCursor() {
 
 // Interaction handlers
 function handleMouseDown(event) {
-  console.log('🖱️ Mouse down in edit mode:', ui.editMode, 'active tab:', ui.activeTab)
-  
   const rect = canvasRef.value?.getBoundingClientRect()
   if (!rect) return
   
@@ -913,8 +837,6 @@ function handleMouseDown(event) {
       y: worldY - (pos.y * tileSize)
     }
     
-    console.log(`🎯 Selected character: ${clickedCharacter.name} for dragging`)
-    
     // Select character in UI and switch to character tab
     ui.selectCharacter(clickedCharacter.id)
     ui.setActiveTab('character-editor')
@@ -929,7 +851,6 @@ function handleMouseDown(event) {
     isDrawing.value = true
     drawStartTile.value = tile
     
-    console.log('🎯 Zone editing: selecting tile', tile)
     return
   }
   
@@ -1036,7 +957,11 @@ function handleMouseUp() {
     // Character dragging completed
     const character = characters.getCharacter(selectedCharacterId.value)
     if (character) {
-      console.log(`📍 Moved ${character.name} to position (${character.position.x}, ${character.position.y})`)
+      characters.moveCharacter(selectedCharacterId.value, {
+        x: character.position.x,
+        y: character.position.y,
+        zone: character.position.zone
+      })
     }
     isDraggingCharacter.value = false
     // Keep character selected but stop dragging
@@ -1086,8 +1011,6 @@ function handleWheel(event) {
 }
 
 function handleClick(event) {
-  console.log('🖱️ Click - Edit mode:', ui.editMode, 'Active tab:', ui.activeTab)
-  
   const rect = canvasRef.value?.getBoundingClientRect()
   if (!rect) return
 
@@ -1106,8 +1029,6 @@ function handleClick(event) {
     
     if (existingZone && !ui.editingZoneId) {
       // If clicking on an existing zone and not currently editing, highlight it in the side menu
-      console.log('🎯 Clicked on existing zone:', existingZone.name)
-      // Set the selected zone in UI state so ZoneEditor can react to it
       ui.selectZone(existingZone.id)
       // Clear current selection and select all tiles for this zone
       ui.clearSelectedTiles()
@@ -1120,7 +1041,6 @@ function handleClick(event) {
     
     // When editing a specific zone, allow clicking on any tile to add/remove it
     if (ui.editingZoneId) {
-      console.log('🖱️ Editing zone:', ui.editingZoneId, 'Clicked tile:', tile.x, tile.y)
       // Allow any tile to be selected when editing a zone
       // The zone editor will handle adding/removing tiles from the zone
     }
@@ -1128,13 +1048,10 @@ function handleClick(event) {
     // Toggle tile selection
     if (ui.selectedTiles.has(key)) {
       ui.removeSelectedTile(tile.x, tile.y)
-      console.log('➖ Deselected tile:', tile.x, tile.y)
     } else {
       ui.addSelectedTile(tile.x, tile.y)
-      console.log('➕ Selected tile:', tile.x, tile.y)
     }
     
-    console.log(`Selected tiles: ${ui.selectedTiles.size}`)
     render()
     return
   }
@@ -1165,12 +1082,10 @@ function handleClick(event) {
     selectedCharacterId.value = clickedCharacter.id
     // Switch to character editor tab when a character is clicked
     ui.setActiveTab('character-editor')
-    console.log(`Selected character: ${clickedCharacter.name}`)
   } else {
     // Deselect character when clicking elsewhere
     ui.selectCharacter(undefined)
     selectedCharacterId.value = null
-    console.log('Deselected character')
   }
   
   render()
@@ -1252,8 +1167,6 @@ function fitToView() {
   ui.setZoom(optimalZoom)
   ui.setCanvasOffset(offsetX, offsetY)
   
-  console.log(`🎯 Fit to view: zoom=${optimalZoom.toFixed(2)}, offset=(${offsetX.toFixed(0)}, ${offsetY.toFixed(0)})`)
-  
   render() // Force re-render
 }
 
@@ -1274,7 +1187,6 @@ function getTileFromScreen(screenX, screenY) {
 
 // Force character movement for testing
 function testCharacterMovement() {
-  console.log('🧪 Testing character movement...')
   characters.charactersList.forEach(character => {
     const newX = Math.floor(Math.random() * 50)
     const newY = Math.floor(Math.random() * 37)
@@ -1283,7 +1195,6 @@ function testCharacterMovement() {
       y: newY,
       zone: character.position.zone
     })
-    console.log(`Moved ${character.name} to (${newX}, ${newY})`)
   })
 }
 

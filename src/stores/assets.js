@@ -6,9 +6,13 @@ export const useAssetStore = defineStore('assets', () => {
   const customMap = ref(null) // Base64 data URL
   const customZones = ref([]) // Array of zone objects
   const customCharacterSprites = ref({}) // Map of characterId -> base64 data URL
+  
+  // **UPDATED: Music tracks for the music player using real files in public/audio**
+  const musicTracks = ref([])
 
   // Actions
-  function loadAssets() {
+  async function loadAssets() {
+    // Load custom assets from localStorage first
     const savedAssets = localStorage.getItem('meadowloop-assets')
     if (savedAssets) {
       try {
@@ -16,10 +20,22 @@ export const useAssetStore = defineStore('assets', () => {
         customMap.value = parsed.customMap || null
         customZones.value = parsed.customZones || []
         customCharacterSprites.value = parsed.customCharacterSprites || {}
-        console.log('✅ Loaded custom assets from localStorage')
       } catch (error) {
         console.error('❌ Failed to load custom assets:', error)
       }
+    }
+
+    // Then, load music tracks from the manifest
+    try {
+      const response = await fetch('/audio/manifest.json');
+      if (response.ok) {
+        const manifest = await response.json();
+        musicTracks.value = manifest;
+      } else {
+        console.warn('⚠️ Could not load audio manifest, music player will be empty.');
+      }
+    } catch (error) {
+      console.error('❌ Failed to load audio manifest:', error);
     }
   }
 
@@ -30,7 +46,6 @@ export const useAssetStore = defineStore('assets', () => {
       customCharacterSprites: customCharacterSprites.value
     }
     localStorage.setItem('meadowloop-assets', JSON.stringify(assets))
-    console.log('💾 Saved custom assets to localStorage')
   }
 
   function setCustomMap(mapDataUrl, zonesData) {
@@ -49,7 +64,6 @@ export const useAssetStore = defineStore('assets', () => {
     customZones.value = []
     customCharacterSprites.value = {}
     localStorage.removeItem('meadowloop-assets')
-    console.log('🗑️ Cleared all custom assets')
   }
 
   function getTownExportData() {
@@ -66,7 +80,6 @@ export const useAssetStore = defineStore('assets', () => {
       customZones.value = data.assets.customZones || []
       customCharacterSprites.value = data.assets.customCharacterSprites || {}
       saveAssets()
-      console.log('✅ Imported custom assets')
     }
   }
 
@@ -77,6 +90,7 @@ export const useAssetStore = defineStore('assets', () => {
     customMap,
     customZones,
     customCharacterSprites,
+    musicTracks,
     loadAssets,
     setCustomMap,
     setCustomSprite,

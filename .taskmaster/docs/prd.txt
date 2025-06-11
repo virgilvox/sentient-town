@@ -1,0 +1,30 @@
+MeadowLoop AI Town Simulation PRD
+
+Overview:
+MeadowLoop is a pixel-art AI-driven town simulation where autonomous characters interact, move, converse, and evolve. The system uses Claude/OpenAI APIs for character reasoning, conversation, and asset generation. The user can control simulation speed, inject scenarios, edit characters/zones, and view logs through a modern Vue 3 UI.
+
+Core Features:
+- Simulation engine with tick-based orchestration
+- AI-driven character actions, movement, and conversations
+- Memory and event management for evolving character state
+- Dynamic zone and pathfinding system (walkable/unwalkable)
+- Asset management for sprites, maps, and music
+- Music player with theme-based track selection
+- UI panels for control, editing, introspection, events, conversations, and settings
+- Scenario injection system for user-driven events
+
+Key Requirements:
+1. Characters must move, speak, and interact naturally, with multi-turn conversations and memory.
+2. Conversations and events must be logged and visible in the UI.
+3. Zones must support walkable/unwalkable logic for pathfinding.
+4. Music player must play real audio files from public/audio and handle errors gracefully.
+5. All user-facing controls (start/stop, speed, scenario injection, etc.) must work reliably.
+6. Asset generation and management must be robust and user-friendly.
+7. The system must be resilient to API errors and provide clear feedback.
+
+Non-Goals:
+- No multiplayer or networked play
+- No advanced 3D rendering
+- No explicit scripting of character behavior (all AI-driven)
+
+See MeadowLoop_PRD.md for additional context. 

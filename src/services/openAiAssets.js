@@ -514,12 +514,17 @@ TECHNICAL: Full body front facing pixel art character, centered, transparent bac
         }
 
         if (tiles.length > 0) {
+          // Determine if zone is walkable based on type
+          const unwalkableTypes = ['solid', 'wall', 'building', 'obstacle']
+          const isWalkable = !unwalkableTypes.includes(zone.type)
+          
           finalZones.push({
             id: zoneId,
             name: zone.name,
             type: zone.type,
             tiles: tiles,
-            description: zone.visualDescription || ''
+            description: zone.visualDescription || '',
+            walkable: isWalkable
           })
         }
       } catch (error) {
@@ -599,86 +604,156 @@ TECHNICAL: Full body front facing pixel art character, centered, transparent bac
   }
 
   generateLogicalZones(originalPrompt) {
-    // Enhanced zone patterns with more realistic positioning and sizes
-    const zonePatterns = [
-      { keywords: ['florist', 'flower', 'rose'], name: "Rose's Florist", type: 'shop', priority: 8 },
-      { keywords: ['bakery', 'moonrise', 'bread', 'baking'], name: "Moonrise Bakery", type: 'shop', priority: 8 },
-      { keywords: ['workshop', 'griff', 'wood', 'craft'], name: "Griff's Workshop", type: 'shop', priority: 8 },
-      { keywords: ['town hall', 'hall', 'civic', 'government'], name: "Town Hall", type: 'public', priority: 9 },
-      { keywords: ['orchard', 'trees', 'fruit', 'apple'], name: "Old Orchard", type: 'park', priority: 7 },
-      { keywords: ['house', 'home', 'residence', 'cottage'], name: "Residential District", type: 'home', priority: 6 },
-      { keywords: ['park', 'garden', 'green', 'commons'], name: "Town Park", type: 'park', priority: 7 },
-      { keywords: ['market', 'square', 'center', 'plaza'], name: "Market Square", type: 'public', priority: 9 },
-      { keywords: ['inn', 'tavern', 'lodge'], name: "Cozy Inn", type: 'shop', priority: 6 },
-      { keywords: ['library', 'books', 'reading'], name: "Village Library", type: 'public', priority: 5 },
-      { keywords: ['church', 'temple', 'chapel'], name: "Village Chapel", type: 'public', priority: 5 },
-      { keywords: ['fountain', 'well', 'water'], name: "Village Fountain", type: 'public', priority: 4 },
-      { keywords: ['blacksmith', 'forge', 'smith'], name: "Village Forge", type: 'shop', priority: 6 },
-      { keywords: ['stable', 'horse', 'barn'], name: "Village Stables", type: 'shop', priority: 4 }
-    ]
-
-    const detectedZones = []
+    console.log('🏗️ Generating logical zones as fallback...')
+    
     const promptLower = originalPrompt.toLowerCase()
-
-    // Detect zones mentioned in prompt with priority scoring
-    zonePatterns.forEach((pattern, index) => {
-      const matchCount = pattern.keywords.reduce((count, keyword) => {
-        return count + (promptLower.includes(keyword) ? 1 : 0)
-      }, 0)
-      
-      if (matchCount > 0) {
-        detectedZones.push({
-          ...pattern,
-          matchScore: matchCount * pattern.priority,
-          originalIndex: index
-        })
+    const mapWidth = 50
+    const mapHeight = 37
+    
+    // Core zones that should be in most towns
+    const coreZones = [
+      {
+        name: 'Town Center',
+        type: 'public',
+        description: 'Main gathering place and focal point of the town',
+        area: 'center',
+        priority: 10
+      },
+      {
+        name: 'Residential District',
+        type: 'home',
+        description: 'Quiet area where townspeople live',
+        area: 'mixed',
+        priority: 9
+      },
+      {
+        name: 'Market Square',
+        type: 'commercial',
+        description: 'Bustling area for trade and commerce',
+        area: 'center-north',
+        priority: 8
+      },
+      {
+        name: 'Town Park',
+        type: 'park',
+        description: 'Green space for relaxation and gatherings',
+        area: 'east',
+        priority: 7
+      },
+      {
+        name: 'Main Street',
+        type: 'street',
+        description: 'Primary road connecting key locations',
+        area: 'center-horizontal',
+        priority: 6
       }
-    })
-
-    // Sort by match score and priority
-    detectedZones.sort((a, b) => b.matchScore - a.matchScore)
-
-    // Always ensure we have essential zones
-    const essentialZones = [
-      { name: "Town Center", type: 'public', priority: 10 },
-      { name: "Main Street", type: 'street', priority: 8 },
-      { name: "Residential Area", type: 'home', priority: 7 },
-      { name: "Village Green", type: 'park', priority: 6 }
     ]
-
-    essentialZones.forEach(essential => {
-      if (!detectedZones.some(z => z.type === essential.type || z.name.toLowerCase().includes(essential.name.toLowerCase()))) {
-        detectedZones.push({
-          ...essential,
-          matchScore: essential.priority,
-          keywords: [],
-          originalIndex: 999
-        })
+    
+    // Solid zones for buildings and obstacles
+    const solidZones = [
+      {
+        name: 'Town Hall Building',
+        type: 'building',
+        description: 'Solid building structure - cannot walk through',
+        area: 'center-small',
+        priority: 9
+      },
+      {
+        name: 'Market Building',
+        type: 'building', 
+        description: 'Marketplace building structure',
+        area: 'north-small',
+        priority: 8
+      },
+      {
+        name: 'Residential Buildings',
+        type: 'building',
+        description: 'Houses and apartment buildings',
+        area: 'west-buildings',
+        priority: 7
+      },
+      {
+        name: 'Stone Walls',
+        type: 'wall',
+        description: 'Stone barriers around important areas',
+        area: 'boundary',
+        priority: 6
       }
-    })
-
-    // Generate final zones with better positioning
-    const finalZones = []
+    ]
+    
+    // Conditional zones based on prompt content
+    const conditionalZones = []
+    
+    // Fantasy/Medieval themed zones
+    if (promptLower.includes('fantasy') || promptLower.includes('medieval') || promptLower.includes('castle')) {
+      conditionalZones.push(
+        { name: 'Castle Grounds', type: 'castle', area: 'north', priority: 10 },
+        { name: 'Castle Keep', type: 'building', area: 'north-small', priority: 9 },
+        { name: 'Blacksmith Shop', type: 'commercial', area: 'south-west', priority: 7 },
+        { name: 'Tavern Building', type: 'building', area: 'center-west', priority: 7 },
+        { name: 'City Walls', type: 'wall', area: 'perimeter', priority: 8 }
+      )
+    }
+    
+    // Modern themed zones
+    if (promptLower.includes('modern') || promptLower.includes('contemporary')) {
+      conditionalZones.push(
+        { name: 'Community Center Building', type: 'building', area: 'center-north', priority: 8 },
+        { name: 'Shopping Mall', type: 'building', area: 'east-large', priority: 7 },
+        { name: 'Office Buildings', type: 'building', area: 'south-buildings', priority: 6 },
+        { name: 'Parking Areas', type: 'street', area: 'scattered', priority: 5 }
+      )
+    }
+    
+    // Natural features
+    if (promptLower.includes('river') || promptLower.includes('water')) {
+      conditionalZones.push(
+        { name: 'River', type: 'obstacle', area: 'diagonal', priority: 9 },
+        { name: 'Bridge', type: 'street', area: 'river-crossing', priority: 8 }
+      )
+    }
+    
+    if (promptLower.includes('forest') || promptLower.includes('woods')) {
+      conditionalZones.push(
+        { name: 'Forest Edge', type: 'park', area: 'east-edge', priority: 6 },
+        { name: 'Dense Woods', type: 'obstacle', area: 'far-east', priority: 5 }
+      )
+    }
+    
+    // Combine all zones and sort by priority
+    const allZones = [...coreZones, ...solidZones, ...conditionalZones]
+      .sort((a, b) => b.priority - a.priority)
+      .slice(0, 12) // Limit to reasonable number
+    
     const usedAreas = new Set()
+    const finalZones = []
     
-    // Take top 8-12 zones
-    const selectedZones = detectedZones.slice(0, Math.min(12, detectedZones.length))
-    
-    selectedZones.forEach((zoneData, index) => {
-      const zoneId = `zone_${Date.now()}_${index}`
-      const tiles = this.generateRealisticZoneTiles(zoneData, index, selectedZones.length, usedAreas)
+    // Generate tiles for each zone
+    allZones.forEach((zoneData, index) => {
+      const tiles = this.generateRealisticZoneTiles(zoneData, index, allZones.length, usedAreas)
       
       if (tiles.length > 0) {
-        finalZones.push({
-          id: zoneId,
+        // Determine if zone is walkable based on type
+        const unwalkableTypes = ['solid', 'wall', 'building', 'obstacle']
+        const isWalkable = !unwalkableTypes.includes(zoneData.type)
+        
+        const zone = {
+          id: `logical_${Date.now()}_${index}`,
           name: zoneData.name,
           type: zoneData.type,
-          tiles: tiles
-        })
+          tiles: tiles,
+          description: zoneData.description,
+          walkable: isWalkable
+        }
+        
+        finalZones.push(zone)
+        const walkableStatus = isWalkable ? 'walkable' : 'unwalkable'
+        console.log(`🏗️ Generated ${zoneData.type} zone: ${zoneData.name} with ${tiles.length} tiles (${walkableStatus})`)
       }
     })
-
-    console.log(`🏘️ Generated ${finalZones.length} logical zones with realistic placement`)
+    
+    console.log(`✅ Generated ${finalZones.length} logical zones with ${finalZones.filter(z => ['building', 'wall', 'obstacle'].includes(z.type)).length} solid obstacles`)
+    
     return finalZones
   }
 
@@ -1017,6 +1092,248 @@ TECHNICAL: Full body front facing pixel art character, centered, transparent bac
     })
     
     console.log(`✅ All ${downloadableFiles.length} assets queued for download`)
+  }
+
+  async generateMapAndZones(prompt, mapStyle = 'pixel-art') {
+    try {
+      console.log(`🎨 Starting AI map generation with style: ${mapStyle}`)
+      
+      // Step 1: Generate the map image
+      const mapResponse = await fetch('/api/openai/image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt: `${prompt}. Style: ${mapStyle}, top-down view, clear distinct areas for buildings, roads, parks, and residential zones. Make it suitable for character navigation with clear walkable paths.`,
+          size: '1024x1024', // Standard size, will be resized for game
+          n: 1,
+        }),
+      })
+
+      if (!mapResponse.ok) {
+        const errorData = await mapResponse.json()
+        throw new Error(`Map generation failed: ${errorData.error || 'Unknown error'}`)
+      }
+
+      const mapData = await mapResponse.json()
+      const mapImageUrl = mapData.data[0].url
+      
+      console.log('✅ Map image generated, starting zone analysis...')
+      
+      // Step 2: Use Claude to analyze the map and suggest zones
+      const analysisPrompt = `I have generated a top-down map image for a small town simulation game. Please analyze this image and suggest logical zones for the town. 
+
+For each zone you identify, provide:
+1. Zone name
+2. Zone type (home, shop, public, park, street, solid, wall, building, obstacle)  
+3. Approximate coordinates as percentages of the image (x%, y%, width%, height%)
+4. Brief description
+
+Focus on identifying:
+- **SOLID ZONES**: Buildings, trees, water, rocks, or other obstacles that characters cannot walk through
+- **WALKABLE ZONES**: Streets, paths, courtyards, parks, markets where characters can move
+- **FUNCTIONAL ZONES**: Homes, shops, public buildings, gathering areas
+
+Map image URL: ${mapImageUrl}
+
+Please provide a JSON array of zones in this format:
+[
+  {
+    "name": "Town Hall",
+    "type": "building", 
+    "x": "45%",
+    "y": "30%", 
+    "width": "15%",
+    "height": "20%",
+    "description": "Large central building - characters cannot walk through this"
+  }
+]
+
+Be thorough and identify at least 10-15 zones including both walkable areas and solid obstacles.`
+
+      const claudeResponse = await fetch('/api/claude/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt: analysisPrompt,
+          systemPrompt: "You are an expert at analyzing game maps and identifying logical zones for character navigation. Focus on creating both walkable areas and solid obstacles that affect pathfinding."
+        }),
+      })
+
+      if (!claudeResponse.ok) {
+        console.warn('❌ Claude analysis failed, using fallback zone generation')
+        return this.generateMapWithFallbackZones(prompt, mapImageUrl)
+      }
+
+      const claudeData = await claudeResponse.json()
+      let suggestedZones = []
+      
+      try {
+        // Extract JSON from Claude's response
+        const jsonMatch = claudeData.response.match(/\[([\s\S]*?)\]/g)
+        if (jsonMatch) {
+          suggestedZones = JSON.parse(jsonMatch[0])
+        } else {
+          throw new Error('No JSON found in Claude response')
+        }
+      } catch (parseError) {
+        console.warn('❌ Failed to parse Claude zones, using fallback:', parseError)
+        return this.generateMapWithFallbackZones(prompt, mapImageUrl)
+      }
+
+      // Step 3: Convert percentage coordinates to tile coordinates
+      const zones = this.convertPercentageZonesToTiles(suggestedZones)
+      
+      console.log(`✅ Generated ${zones.length} AI-analyzed zones:`, zones)
+
+      return {
+        success: true,
+        mapImageUrl,
+        zones,
+        metadata: {
+          generated: new Date().toISOString(),
+          prompt: prompt,
+          style: mapStyle,
+          zoneCount: zones.length
+        }
+      }
+
+    } catch (error) {
+      console.error('❌ Map generation failed:', error)
+      throw error
+    }
+  }
+
+  convertPercentageZonesToTiles(percentageZones) {
+    const mapWidth = 50  // Game map is 50 tiles wide
+    const mapHeight = 37 // Game map is 37 tiles tall
+    
+    return percentageZones.map((zone, index) => {
+      // Parse percentage values
+      const x = parseInt(zone.x?.replace('%', '') || '0') / 100
+      const y = parseInt(zone.y?.replace('%', '') || '0') / 100  
+      const width = parseInt(zone.width?.replace('%', '') || '10') / 100
+      const height = parseInt(zone.height?.replace('%', '') || '10') / 100
+      
+      // Convert to tile coordinates
+      const startX = Math.floor(x * mapWidth)
+      const startY = Math.floor(y * mapHeight)
+      const endX = Math.min(mapWidth - 1, Math.floor((x + width) * mapWidth))
+      const endY = Math.min(mapHeight - 1, Math.floor((y + height) * mapHeight))
+      
+      // Generate tiles for this zone
+      const tiles = []
+      for (let tileX = startX; tileX <= endX; tileX++) {
+        for (let tileY = startY; tileY <= endY; tileY++) {
+          tiles.push({ x: tileX, y: tileY })
+        }
+      }
+      
+      return {
+        id: `zone-${Date.now()}-${index}`,
+        name: zone.name || `Zone ${index + 1}`,
+        type: zone.type || 'public',
+        tiles: tiles,
+        description: zone.description || 'AI-generated zone'
+      }
+    }).filter(zone => zone.tiles.length > 0) // Remove empty zones
+  }
+
+  generateMapWithFallbackZones(prompt, mapImageUrl) {
+    console.log('🏗️ Generating fallback zones for map...')
+    
+    // Create realistic zones based on typical town layout
+    const fallbackZones = [
+      {
+        id: 'fallback_town_center',
+        name: 'Town Center',
+        type: 'public',
+        tiles: this.generateRectangleTiles(20, 15, 10, 8),
+        description: 'Central gathering area',
+        walkable: true
+      },
+      {
+        id: 'fallback_residential_west',
+        name: 'West Residential',
+        type: 'home',
+        tiles: this.generateRectangleTiles(2, 5, 15, 20),
+        description: 'Residential housing area',
+        walkable: true
+      },
+      {
+        id: 'fallback_residential_east',
+        name: 'East Residential',
+        type: 'home',
+        tiles: this.generateRectangleTiles(33, 5, 15, 20),
+        description: 'Residential housing area',
+        walkable: true
+      },
+      {
+        id: 'fallback_market',
+        name: 'Market District',
+        type: 'shop',
+        tiles: this.generateRectangleTiles(15, 25, 20, 8),
+        description: 'Commercial and trading area',
+        walkable: true
+      },
+      {
+        id: 'fallback_park',
+        name: 'Community Park',
+        type: 'park',
+        tiles: this.generateRectangleTiles(35, 25, 12, 10),
+        description: 'Green space for recreation',
+        walkable: true
+      },
+      {
+        id: 'fallback_main_street',
+        name: 'Main Street',
+        type: 'street',
+        tiles: this.generateRectangleTiles(0, 18, 50, 3),
+        description: 'Primary road through town',
+        walkable: true
+      },
+      {
+        id: 'fallback_town_hall',
+        name: 'Town Hall Building',
+        type: 'building',
+        tiles: this.generateRectangleTiles(22, 12, 6, 6),
+        description: 'Administrative building - solid structure',
+        walkable: false
+      },
+      {
+        id: 'fallback_walls',
+        name: 'Boundary Walls',
+        type: 'wall',
+        tiles: [
+          ...this.generateRectangleTiles(0, 0, 50, 1),    // North wall
+          ...this.generateRectangleTiles(0, 36, 50, 1),   // South wall
+          ...this.generateRectangleTiles(0, 0, 1, 37),    // West wall
+          ...this.generateRectangleTiles(49, 0, 1, 37)    // East wall
+        ],
+        description: 'Town boundary walls - impassable',
+        walkable: false
+      }
+    ]
+    
+    console.log(`✅ Generated ${fallbackZones.length} fallback zones with proper walkable settings`)
+    
+    return {
+      mapImageUrl,
+      zones: fallbackZones
+    }
+  }
+
+  generateRectangleTiles(startX, startY, width, height) {
+    const tiles = []
+    for (let x = startX; x < startX + width && x < 50; x++) {
+      for (let y = startY; y < startY + height && y < 37; y++) {
+        tiles.push({ x, y })
+      }
+    }
+    return tiles
   }
 }
 

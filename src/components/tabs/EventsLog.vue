@@ -46,13 +46,13 @@
         <!-- Debugging info -->
         <div style="margin-top: 20px; font-size: 12px; color: #666; background: #f0f0f0; padding: 10px; border-radius: 4px;">
           <div><strong>Debug Info:</strong></div>
-          <div>Total events in store: {{ simulation.events.length }}</div>
-          <div>Recent events count: {{ simulation.recentEvents.length }}</div>
+          <div>Total events in store: {{ simulationStore.events.length }}</div>
+          <div>Recent events count: {{ simulationStore.recentEvents.length }}</div>
           <div>Filtered events count: {{ filteredEvents.length }}</div>
           <div>Filter type: "{{ filterType }}"</div>
           <div>Filter character: "{{ filterCharacter }}"</div>
-          <div>Simulation running: {{ simulation.state.isRunning }}</div>
-          <div>Current tick: {{ simulation.state.currentTick }}</div>
+          <div>Simulation running: {{ simulationStore.state.isRunning }}</div>
+          <div>Current tick: {{ simulationStore.state.currentTick }}</div>
         </div>
       </div>
 
@@ -124,7 +124,7 @@
 
     <footer class="log-footer">
       <span class="event-count">
-        Showing {{ filteredEvents.length }} of {{ simulation.events.length }} events
+        Showing {{ filteredEvents.length }} of {{ simulationStore.events.length }} events
       </span>
       <div class="auto-scroll-toggle">
         <input type="checkbox" id="auto-scroll-checkbox" v-model="autoScroll" />
@@ -135,11 +135,13 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted, watchEffect } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useSimulationStore, useCharactersStore } from '@/stores'
 
-const simulation = useSimulationStore()
+const simulationStore = useSimulationStore()
 const characters = useCharactersStore()
+const { events } = storeToRefs(simulationStore)
 
 const filterType = ref('')
 const filterCharacter = ref('')
@@ -147,45 +149,12 @@ const autoScroll = ref(true)
 const eventsListRef = ref(null)
 const expandedEventsRef = ref(new Set())
 
-// Filter events based on selected filters
 const filteredEvents = computed(() => {
-  // Safety check - ensure we have events to work with
-  if (!simulation.recentEvents || !Array.isArray(simulation.recentEvents)) {
-    console.log('🔍 No recent events available in simulation store')
-    return []
-  }
-  
-  let events = [...simulation.recentEvents]
-  
-  console.log('🔍 EventsLog filtering - Initial events count:', events.length)
-  console.log('🔍 Available events types:', events.map(e => e.type))
-  console.log('🔍 Filter settings:', { type: filterType.value, character: filterCharacter.value })
-  
-  if (filterType.value) {
-    events = events.filter(event => {
-      // Handle special "injection" filter type for scenario events
-      if (filterType.value === 'injection') {
-        // ✅ IMPROVED SCENARIO EVENT DETECTION - Multiple ways to identify scenario events
-        return event.details?.injection_id || 
-               event.details?.is_scenario_event || 
-               event.type === 'injection' ||
-               (event.details?.injection_content || event.details?.injection_target)
-      }
-      return event.type === filterType.value
-    })
-    console.log('🔍 After type filter:', events.length)
-  }
-  
-  if (filterCharacter.value) {
-    events = events.filter(event => 
-      event.involvedCharacters && event.involvedCharacters.includes(filterCharacter.value)
-    )
-    console.log('🔍 After character filter:', events.length)
-  }
-  
-  const finalEvents = events.slice(0, 100) // Limit to 100 most recent
-  console.log('🔍 Final filtered events count:', finalEvents.length)
-  return finalEvents
+  return events.value.filter(event => {
+    const typeMatch = !filterType.value || event.type === filterType.value
+    const characterMatch = !filterCharacter.value || (event.involvedCharacters && event.involvedCharacters.includes(filterCharacter.value))
+    return typeMatch && characterMatch
+  }).sort((a, b) => a.timestamp - b.timestamp)
 })
 
 function getEventIcon(type) {
@@ -224,15 +193,15 @@ function setCharacterFilter(characterId) {
 
 function clearEvents() {
   if (confirm('Are you sure you want to clear all events?')) {
-    simulation.events.splice(0)
-    simulation.saveToLocalStorage()
+    simulationStore.events.splice(0)
+    simulationStore.saveToLocalStorage()
   }
 }
 
 function resetSimulation() {
   if (confirm('This will clear all simulation data (events, conversations, injections). Are you sure?')) {
     try {
-      simulation.resetSimulation()
+      simulationStore.resetSimulation()
       console.log('✅ Simulation data reset successfully')
       alert('Simulation data has been reset!')
     } catch (error) {
@@ -294,25 +263,8 @@ function getDisplaySummary(event) {
   // Access the reactive ref directly (no parameter needed)
   const currentExpandedEvents = expandedEventsRef.value || new Set()
   
-  // DEBUG: Log the event structure to see all available fields
-  console.log('🔍 Event structure for expansion:', {
-    type: event.type,
-    summary: event.summary,
-    description: event.description, 
-    content: event.content,
-    details: event.details,
-    allFields: Object.keys(event),
-    detailsFields: event.details ? Object.keys(event.details) : null
-  })
-  
   // Get the main content for this event type
   let mainContent = getMainContentForEvent(event)
-  
-  console.log('🔍 Main content found:', {
-    length: mainContent.length,
-    preview: mainContent.substring(0, 50) + '...',
-    expanded: currentExpandedEvents.has(getEventKey(event))
-  })
   
   // Check if this event is currently expanded
   const eventKey = getEventKey(event)
@@ -345,7 +297,7 @@ function toggleEventExpansion(event) {
 
 // Auto-scroll to bottom when new events arrive
 watch(
-  () => simulation.events.length,
+  () => events.value.length,
   async () => {
     if (autoScroll.value) {
       await nextTick()
@@ -365,18 +317,10 @@ let updateInterval = null
 
 onMounted(() => {
   scrollToBottom()
-  
-  // Update events every second for real-time feel
-  updateInterval = setInterval(() => {
-    // Force reactivity update if needed
-    simulation.saveToLocalStorage()
-  }, 1000)
 })
 
 onUnmounted(() => {
-  if (updateInterval) {
-    clearInterval(updateInterval)
-  }
+  // No interval to clear
 })
 </script>
 

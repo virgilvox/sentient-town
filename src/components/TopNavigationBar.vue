@@ -117,7 +117,6 @@ function onTickSpeedInput() {
 
 function updateTickSpeed() {
   const newSpeed = parseInt(localTickSpeed.value)
-  console.log('🎚️ Setting tick speed to:', newSpeed, 'seconds')
   simulation.setTimeSpeed(newSpeed)
   
   // Only restart simulation if it's running and user isn't currently interacting
@@ -141,7 +140,6 @@ async function saveAll() {
     ui.saveToLocalStorage()
     
     // Show success feedback (could be a toast notification)
-    console.log('All changes saved successfully')
     
     // You could add a toast notification here
     setTimeout(() => {
@@ -157,14 +155,12 @@ async function saveAll() {
 // Toggle simulation
 function toggleSimulation() {
   if (simulation.state.isRunning) {
-    console.log('🛑 Stopping simulation...')
     simulation.stopSimulation()
     // Import and use the simulation engine directly
     import('@/services/simulationEngine').then(({ simulationEngine }) => {
       simulationEngine.stop()
     })
   } else {
-    console.log('▶️ Starting simulation...')
     simulation.startSimulation()
     // Import and use the simulation engine directly
     import('@/services/simulationEngine').then(({ simulationEngine }) => {
@@ -173,7 +169,6 @@ function toggleSimulation() {
   }
   
   ui.setSimulationRunning(simulation.state.isRunning)
-  console.log('🎮 Simulation state:', simulation.state.isRunning ? 'RUNNING' : 'STOPPED')
 }
 
 // Test image generation
@@ -188,12 +183,9 @@ async function testImageGeneration() {
       return
     }
     
-    console.log('🎨 Testing OpenAI image generation...')
-    
     // Generate a character sprite for the first character
     if (characters.charactersList.length > 0) {
       const firstChar = characters.charactersList[0]
-      console.log(`👤 Generating test sprite for ${firstChar.name}...`)
       const spriteUrl = await openAIAssets.generateCharacterSprite({
         name: firstChar.name,
         MBTI: firstChar.MBTI,
@@ -201,7 +193,6 @@ async function testImageGeneration() {
         mentalHealth: firstChar.mentalHealth,
         desires: firstChar.desires
       })
-      console.log('✅ Test sprite generated:', spriteUrl)
       
       alert(`🎉 AI image generation working!\n\nGenerated a test sprite for ${firstChar.name}.\nCheck the browser console for the image URL.\n\nYou can now use the "🎨 Generate AI Sprite" button in the Character Editor to create custom sprites for your characters!`)
     }
@@ -219,9 +210,7 @@ async function generateMap() {
   isGeneratingMap.value = true
   
   try {
-    console.log('🗺️ Generating town map...')
     const mapUrl = await openAIAssets.generateTownMap()
-    console.log('✅ Map generated:', mapUrl)
     
     alert('🗺️ Map generated successfully! Check the console for URL.')
     
