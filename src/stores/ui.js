@@ -90,21 +90,11 @@ export const useUIStore = defineStore('ui', () => {
   }
 
   function setClaudeApiKey(key) {
-    // Basic validation for Claude API key format
     if (key && typeof key === 'string' && key.trim()) {
       const cleanKey = key.trim()
       
-      // Claude API keys typically start with 'sk-ant-'
-      if (!cleanKey.startsWith('sk-ant-')) {
-        return false
-      }
-      
-      // Check minimum length (Claude keys are usually quite long)
-      if (cleanKey.length < 20) {
-        return false
-      }
-      
       claudeApiKey.value = cleanKey
+      claudeKeyStatus.value = 'user'
       console.log('✅ Claude API key updated in UI store')
       
       // Also set the key in the Claude API service
@@ -116,6 +106,7 @@ export const useUIStore = defineStore('ui', () => {
     } else {
       // Clear the key
       claudeApiKey.value = ''
+      claudeKeyStatus.value = import.meta.env.VITE_CLAUDE_API_KEY ? 'env' : 'none'
       console.log('🗑️ Claude API key cleared')
       
       // Also clear the key in the Claude API service
@@ -123,7 +114,7 @@ export const useUIStore = defineStore('ui', () => {
       console.log('🗑️ Claude API key also cleared in service')
       
       saveToLocalStorage()
-      return true
+      return false
     }
   }
 
@@ -154,10 +145,10 @@ export const useUIStore = defineStore('ui', () => {
     }
 
     openaiApiKey.value = trimmedKey
+    openaiKeyStatus.value = 'user'
     console.log('🔑 OpenAI API key updated:', trimmedKey.substring(0, 10) + '...')
     
     // Save to localStorage
-    openaiKeyStatus.value = 'user'
     saveToLocalStorage()
     return true
   }
@@ -301,6 +292,32 @@ export const useUIStore = defineStore('ui', () => {
     saveToLocalStorage()
   }
 
+  function checkApiKeyStatuses() {
+    // Check Claude
+    const claudeUser = claudeApiKey.value
+    const claudeEnv = import.meta.env.VITE_CLAUDE_API_KEY
+    
+    if (claudeUser && claudeUser.trim()) {
+      claudeKeyStatus.value = 'user'
+    } else if (claudeEnv && claudeEnv.trim()) {
+      claudeKeyStatus.value = 'env'
+    } else {
+      claudeKeyStatus.value = 'none'
+    }
+    
+    // Check OpenAI
+    const openaiUser = openaiApiKey.value
+    const openaiEnv = import.meta.env.VITE_OPENAI_API_KEY
+    
+    if (openaiUser && openaiUser.trim()) {
+      openaiKeyStatus.value = 'user'
+    } else if (openaiEnv && openaiEnv.trim()) {
+      openaiKeyStatus.value = 'env'
+    } else {
+      openaiKeyStatus.value = 'none'
+    }
+  }
+
   // Persistence
   function saveToLocalStorage() {
     const data = {
@@ -313,6 +330,7 @@ export const useUIStore = defineStore('ui', () => {
       memorySettings: memorySettings.value,
     }
     localStorage.setItem('meadowloop-ui', JSON.stringify(data))
+    checkApiKeyStatuses()
   }
 
   function loadFromLocalStorage() {
@@ -361,6 +379,7 @@ export const useUIStore = defineStore('ui', () => {
   function initializeStore() {
     // Load any saved UI state from localStorage
     loadFromLocalStorage()
+    checkApiKeyStatuses()
   }
 
   return {

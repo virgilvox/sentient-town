@@ -907,20 +907,20 @@ function saveClaudeApiKey() {
   const success = ui.setClaudeApiKey(claudeApiKeyInput.value)
   if (success) {
     alert('✅ Claude API key saved successfully!')
-    claudeApiKeyInput.value = ''
   } else if (claudeApiKeyInput.value) {
     alert('❌ Invalid Claude API key format. Key must start with "sk-ant-".')
   }
+  claudeApiKeyInput.value = ''
 }
 
 function saveOpenAIApiKey() {
   const success = ui.setOpenaiApiKey(openaiApiKeyInput.value)
   if (success) {
     alert('✅ OpenAI API key saved successfully!')
-    openaiApiKeyInput.value = ''
   } else if (openaiApiKeyInput.value) {
     alert('❌ Invalid OpenAI API key format. Key must start with "sk-".')
   }
+  openaiApiKeyInput.value = ''
 }
 
 async function testClaudeConnection() {
