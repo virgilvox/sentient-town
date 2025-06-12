@@ -96,13 +96,11 @@ export const useUIStore = defineStore('ui', () => {
       
       // Claude API keys typically start with 'sk-ant-'
       if (!cleanKey.startsWith('sk-ant-')) {
-        console.warn('⚠️ Claude API key should start with sk-ant-')
         return false
       }
       
       // Check minimum length (Claude keys are usually quite long)
       if (cleanKey.length < 20) {
-        console.warn('⚠️ Claude API key appears to be too short')
         return false
       }
       
@@ -311,7 +309,8 @@ export const useUIStore = defineStore('ui', () => {
       timeSpeed: timeSpeed.value,
       claudeApiKey: claudeApiKey.value,
       openaiApiKey: openaiApiKey.value,
-      canvasState: canvasState.value
+      canvasState: canvasState.value,
+      memorySettings: memorySettings.value,
     }
     localStorage.setItem('meadowloop-ui', JSON.stringify(data))
   }
@@ -328,6 +327,9 @@ export const useUIStore = defineStore('ui', () => {
         if (data.openaiApiKey) openaiApiKey.value = data.openaiApiKey
         if (data.canvasState) {
           canvasState.value = { ...canvasState.value, ...data.canvasState }
+        }
+        if (data.memorySettings) {
+          memorySettings.value = { ...memorySettings.value, ...data.memorySettings }
         }
       }
     } catch (error) {

@@ -53,12 +53,7 @@ onMounted(async () => {
     await nextTick()
     
     // Initialize and configure simulation engine with all stores
-    simulationEngine.setStores({
-      characters,
-      simulation,
-      zones,
-      ui
-    })
+    await simulationEngine.initialize()
     
     // Check if simulation should auto-start
     if (simulation.state.isRunning) {

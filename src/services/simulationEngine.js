@@ -31,6 +31,7 @@ class ComprehensiveSimulationEngine {
     this.tickInterval = null
     this.stores = null
     this.running = false
+    this.saveInterval = null
   }
 
   async initialize() {
@@ -40,6 +41,7 @@ class ComprehensiveSimulationEngine {
         simulation: useSimulationStore(),
         zones: useZonesStore()
       }
+      this.loadState() // Load saved state on initialization
       console.log('🎮 Simulation engine initialized with stores')
       return true
     } catch (error) {
@@ -79,6 +81,9 @@ class ComprehensiveSimulationEngine {
       this.tickInterval = setInterval(() => this.processTick(), tickSpeedInMs)
       this.processTick() // Initial tick
       
+      // Save state periodically
+      this.saveInterval = setInterval(() => this.saveState(), 30000); // every 30 seconds
+      
       // Update simulation store
       this.stores.simulation.startSimulation()
       
@@ -101,6 +106,10 @@ class ComprehensiveSimulationEngine {
     if (this.tickInterval) {
       clearInterval(this.tickInterval)
       this.tickInterval = null
+    }
+    if (this.saveInterval) {
+      clearInterval(this.saveInterval)
+      this.saveInterval = null
     }
     console.log('⏹️ Simulation engine stopped')
   }
@@ -879,14 +888,22 @@ class ComprehensiveSimulationEngine {
   }
 
   getTokenUsageStats() {
-    return {
-      haiku: { ...this.state.tokenUsage.haiku },
-      sonnet: { ...this.state.tokenUsage.sonnet },
-      estimatedCost: { ...this.state.tokenUsage.estimatedCost }
-    }
+    // Import Claude service and get latest token usage
+    import('./claudeApi.js').then(({ getSessionTokenUsage }) => {
+      const usage = getSessionTokenUsage();
+      if (usage) {
+        this.state.tokenUsage.haiku = usage.haiku;
+        this.state.tokenUsage.sonnet = usage.sonnet;
+        this.state.tokenUsage.estimatedCost = usage.estimatedCost;
+      }
+    });
+    return this.state.tokenUsage;
   }
 
   resetTokenUsageTracking() {
+    import('./claudeApi.js').then(({ default: claudeApi }) => {
+      claudeApi.resetTokenUsage();
+    });
     this.state.tokenUsage = {
       haiku: { input: 0, output: 0, calls: 0 },
       sonnet: { input: 0, output: 0, calls: 0 },
@@ -1015,6 +1032,27 @@ class ComprehensiveSimulationEngine {
       console.log(`[Memory] Consolidated ${recentMemories.length} memories into 1 for ${character.name}.`);
     } else {
       console.warn(`[Memory] Consolidation failed for ${character.name}.`);
+    }
+  }
+
+  saveState() {
+    const simulationData = {
+      tokenUsage: this.state.tokenUsage,
+      lastUpdateTime: this.state.lastUpdateTime,
+    }
+    localStorage.setItem('meadowloop-engine-state', JSON.stringify(simulationData));
+  }
+
+  loadState() {
+    const savedState = localStorage.getItem('meadowloop-engine-state');
+    if (savedState) {
+      try {
+        const parsed = JSON.parse(savedState);
+        this.state.tokenUsage = parsed.tokenUsage || this.state.tokenUsage;
+        this.state.lastUpdateTime = parsed.lastUpdateTime || this.state.lastUpdateTime;
+      } catch(e) {
+        console.error("Failed to load engine state:", e);
+      }
     }
   }
 }

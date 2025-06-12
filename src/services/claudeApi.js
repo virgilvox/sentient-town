@@ -673,4 +673,8 @@ Respond with a JSON array like this:
   }
 }
 
-export default new ClaudeApiService()
+const claudeApiServiceInstance = new ClaudeApiService()
+
+export const getSessionTokenUsage = () => claudeApiServiceInstance.getSessionTokenUsage();
+
+export default claudeApiServiceInstance

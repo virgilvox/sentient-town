@@ -345,8 +345,6 @@ export const useSimulationStore = defineStore('simulation', () => {
     
     // Update environment on every tick
     updateEnvironment()
-    
-    saveToLocalStorage()
   }
 
   function saveToLocalStorage() {

@@ -17,15 +17,16 @@
             <div class="key-input-wrapper">
               <input 
                 id="claude-key"
-                v-model="claudeApiKey" 
+                :value="claudeApiKey"
+                @input="e => claudeApiKeyInput = e.target.value"
+                @blur="updateClaudeApiKey"
                 type="password"
                 placeholder="sk-ant-... (optional)"
                 class="api-key-input"
-                @blur="updateClaudeApiKey"
               />
               <div class="key-status">
-                <span v-if="claudeKeyStatus === 'user'" class="status-badge user">👤 User Key</span>
-                <span v-else-if="claudeKeyStatus === 'env'" class="status-badge env">🔧 Environment</span>
+                <span v-if="ui.claudeKeyStatus === 'user'" class="status-badge user">👤 User Key</span>
+                <span v-else-if="ui.claudeKeyStatus === 'env'" class="status-badge env">🔧 Environment</span>
                 <span v-else class="status-badge none">❌ Not Set</span>
               </div>
             </div>
@@ -36,15 +37,16 @@
             <div class="key-input-wrapper">
               <input 
                 id="openai-key"
-                v-model="openaiApiKey" 
+                :value="openaiApiKey"
+                @input="e => openaiApiKeyInput = e.target.value"
+                @blur="updateOpenAIApiKey"
                 type="password"
                 placeholder="sk-... (optional)"
                 class="api-key-input"
-                @blur="updateOpenAIApiKey"
               />
               <div class="key-status">
-                <span v-if="openaiKeyStatus === 'user'" class="status-badge user">👤 User Key</span>
-                <span v-else-if="openaiKeyStatus === 'env'" class="status-badge env">🔧 Environment</span>
+                <span v-if="ui.openaiKeyStatus === 'user'" class="status-badge user">👤 User Key</span>
+                <span v-else-if="ui.openaiKeyStatus === 'env'" class="status-badge env">🔧 Environment</span>
                 <span v-else class="status-badge none">❌ Not Set</span>
               </div>
             </div>
@@ -506,10 +508,8 @@ const importFileRef = ref(null)
 const autoSaveInterval = ref(0)
 const performanceMode = ref('balanced')
 const debugMode = ref(false)
-const claudeApiKey = ref('')
-const openaiApiKey = ref('')
-const claudeKeyStatus = ref('none')
-const openaiKeyStatus = ref('none')
+const claudeApiKeyInput = ref('')
+const openaiApiKeyInput = ref('')
 const isTestingClaude = ref(false)
 const enableGlobalMemoryManagement = ref(true)
 
@@ -904,53 +904,21 @@ function importAllData(event) {
 }
 
 function updateClaudeApiKey() {
-  if (claudeApiKey.value.trim()) {
-    console.log('🔑 Updating Claude API key...')
-    const success = ui.setClaudeApiKey(claudeApiKey.value.trim())
-    if (success) {
-      claudeKeyStatus.value = 'user'
-      alert('✅ Claude API key updated successfully!')
-    } else {
-      alert('❌ Invalid Claude API key format')
-      claudeApiKey.value = ''
-      claudeKeyStatus.value = 'none'
-    }
-  } else {
-    // Clear user key, check for environment key
-    claudeApiKey.value = ''
-    const envKey = import.meta.env.VITE_CLAUDE_API_KEY
-    if (envKey && envKey.trim()) {
-      claudeKeyStatus.value = 'env'
-    } else {
-      claudeKeyStatus.value = 'none'
-    }
+  const success = ui.setClaudeApiKey(claudeApiKeyInput.value)
+  if (!success && claudeApiKeyInput.value) {
+    alert('❌ Invalid Claude API key format. Key was not saved.')
   }
-  saveSettings()
+  // Clear the input field after attempting to set
+  claudeApiKeyInput.value = ''
 }
 
 function updateOpenAIApiKey() {
-  if (openaiApiKey.value.trim()) {
-    console.log('🔑 Updating OpenAI API key...')
-    const success = ui.setOpenaiApiKey(openaiApiKey.value.trim())
-    if (success) {
-      openaiKeyStatus.value = 'user'
-      alert('✅ OpenAI API key updated successfully!')
-    } else {
-      alert('❌ Invalid OpenAI API key format')
-      openaiApiKey.value = ''
-      openaiKeyStatus.value = 'none'
-    }
-  } else {
-    // Clear user key, check for environment key
-    openaiApiKey.value = ''
-    const envKey = import.meta.env.VITE_OPENAI_API_KEY
-    if (envKey && envKey.trim()) {
-      openaiKeyStatus.value = 'env'
-    } else {
-      openaiKeyStatus.value = 'none'
-    }
+  const success = ui.setOpenaiApiKey(openaiApiKeyInput.value)
+  if (!success && openaiApiKeyInput.value) {
+    alert('❌ Invalid OpenAI API key format. Key was not saved.')
   }
-  saveSettings()
+  // Clear the input field after attempting to set
+  openaiApiKeyInput.value = ''
 }
 
 async function testClaudeConnection() {
@@ -975,68 +943,10 @@ async function testClaudeConnection() {
 
 function clearApiKeys() {
   if (confirm('Clear all user-provided API keys? Environment keys will still be used if available.')) {
-    claudeApiKey.value = ''
-    openaiApiKey.value = ''
-    ui.claudeApiKey = ''
-    ui.openaiApiKey = ''
-    
-    // Check environment keys for status
-    const claudeEnv = import.meta.env.VITE_CLAUDE_API_KEY
-    const openaiEnv = import.meta.env.VITE_OPENAI_API_KEY
-    
-    claudeKeyStatus.value = claudeEnv?.trim() ? 'env' : 'none'
-    openaiKeyStatus.value = openaiEnv?.trim() ? 'env' : 'none'
-    
-    saveSettings()
+    ui.setClaudeApiKey('')
+    ui.setOpenaiApiKey('')
     alert('✅ User API keys cleared!')
   }
-}
-
-function checkApiKeyStatuses() {
-  // Check Claude
-  const claudeUser = ui.claudeApiKey
-  const claudeEnv = import.meta.env.VITE_CLAUDE_API_KEY
-  
-  if (claudeUser && claudeUser.trim()) {
-    claudeKeyStatus.value = 'user'
-    claudeApiKey.value = claudeUser
-  } else if (claudeEnv && claudeEnv.trim()) {
-    claudeKeyStatus.value = 'env'
-    claudeApiKey.value = ''
-  } else {
-    claudeKeyStatus.value = 'none'
-    claudeApiKey.value = ''
-  }
-  
-  // Check OpenAI
-  const openaiUser = ui.openaiApiKey
-  const openaiEnv = import.meta.env.VITE_OPENAI_API_KEY
-  
-  if (openaiUser && openaiUser.trim()) {
-    openaiKeyStatus.value = 'user'
-    openaiApiKey.value = openaiUser
-  } else if (openaiEnv && openaiEnv.trim()) {
-    openaiKeyStatus.value = 'env'
-    openaiApiKey.value = ''
-  } else {
-    openaiKeyStatus.value = 'none'
-    openaiApiKey.value = ''
-  }
-}
-
-function saveSettings() {
-  const settings = {
-    performanceMode: performanceMode.value,
-    debugMode: debugMode.value,
-    claudeApiKey: claudeApiKey.value,
-    openaiApiKey: openaiApiKey.value,
-    claudeKeyStatus: claudeKeyStatus.value,
-    openaiKeyStatus: openaiKeyStatus.value,
-    enableGlobalMemoryManagement: enableGlobalMemoryManagement.value
-  }
-  
-  localStorage.setItem('meadowloopSettings', JSON.stringify(settings))
-  console.log('💾 Settings saved:', settings)
 }
 
 // Token usage tracking
@@ -1077,27 +987,18 @@ async function resetTokenUsage() {
 }
 
 onMounted(() => {
-  // Load settings and check statuses
-  checkApiKeyStatuses()
-  
-  // Load token usage data when component mounts
-  refreshTokenUsage()
-  
+  // Settings are now primarily driven by the store, which loads from localStorage itself.
+  // We can sync component-specific settings here if needed.
   try {
     const saved = localStorage.getItem('meadowloopSettings')
     if (saved) {
       const settings = JSON.parse(saved)
       performanceMode.value = settings.performanceMode || 'balanced'
       debugMode.value = settings.debugMode || false
-      enableGlobalMemoryManagement.value = settings.enableGlobalMemoryManagement !== false; // Default to true
-      // Don't load API keys from settings, check stores instead
+      enableGlobalMemoryManagement.value = settings.enableGlobalMemoryManagement !== false;
     }
-  } catch (error) {
-    console.warn('Failed to load settings:', error)
-  }
-
-  // Load model configuration settings
-  try {
+    
+    // Model configuration settings
     const modelSetting = localStorage.getItem('meadowloop-simulation-model')
     if (modelSetting) {
       selectedSimulationModel.value = modelSetting
@@ -1110,18 +1011,8 @@ onMounted(() => {
       contextMode.value = parsed.contextMode || 'standard'
       enablePromptCaching.value = parsed.enablePromptCaching !== false
     }
-    
-    // Store settings globally for simulation engine
-    window.meadowLoopSettings = window.meadowLoopSettings || {}
-    window.meadowLoopSettings.simulationModel = selectedSimulationModel.value
-    window.meadowLoopSettings.conversationSettings = {
-      frequency: conversationFrequency.value,
-      contextMode: contextMode.value,
-      enablePromptCaching: enablePromptCaching.value,
-      model: selectedSimulationModel.value
-    }
   } catch (error) {
-    console.warn('Failed to load model configuration:', error)
+    console.warn('Failed to load settings:', error)
   }
 })
 </script>
