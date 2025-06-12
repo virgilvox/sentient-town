@@ -4,20 +4,23 @@ const OPENAI_API_URL = '/api/openai/v1/images/generations'
 
 // Get effective OpenAI API key - prioritize user key, fallback to environment
 function getEffectiveOpenAIApiKey() {
-  const ui = useUIStore()
-  // Check if user has set a key in UI and it's not empty
-  if (ui.openaiApiKey && ui.openaiApiKey.trim() !== '') {
+  // This dynamic import is a bit of a workaround for now to break circular deps
+  const { useUIStore } = window.stores;
+  const ui = useUIStore ? useUIStore() : null;
+
+  // 1. Check if user has set a key in UI and it's not empty
+  if (ui && ui.openaiApiKey && ui.openaiApiKey.trim() !== '') {
     return ui.openaiApiKey.trim()
   }
   
-  // Fall back to environment variable
+  // 2. Fall back to environment variable
   const envKey = import.meta.env.VITE_OPENAI_API_KEY || process.env.OPENAI_API_KEY
   if (envKey && envKey.trim() !== '') {
     console.log('🔑 Using OpenAI API key from environment variables')
     return envKey.trim()
   }
   
-  // No key available
+  // 3. No key available
   console.warn('⚠️ No OpenAI API key found in UI settings or environment variables')
   return null
 }

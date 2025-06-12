@@ -30,6 +30,16 @@ const zones = useZonesStore()
 const ui = useUIStore()
 const simulation = useSimulationStore()
 
+// Expose stores to window for access in services
+if (typeof window !== 'undefined') {
+  window.stores = {
+    useCharactersStore,
+    useZonesStore,
+    useUIStore,
+    useSimulationStore
+  }
+}
+
 const isLoading = ref(true)
 
 onMounted(async () => {

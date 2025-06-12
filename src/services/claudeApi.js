@@ -91,14 +91,17 @@ If the character has no one nearby, they may monologue or move toward a meaningf
 
 IMPORTANT: Always respond with unique, authentic behavior - never use templates or repetitive patterns. Each response should feel fresh and true to the character's current state and situation. Create memorable moments that contribute to an evolving narrative.`
 
-let apiKey = null
+let apiKey = null;
 
 // Get the effective API key with fallback logic
 function getEffectiveApiKey() {
-  
-  // 1. Check explicitly set API key first
-  if (apiKey && apiKey.trim()) {
-    return apiKey.trim()
+  // This dynamic import is a bit of a workaround for now to break circular deps
+  const { useUIStore } = window.stores;
+  const ui = useUIStore ? useUIStore() : null;
+
+  // 1. Check explicitly set API key first (from UI store)
+  if (ui && ui.claudeApiKey && ui.claudeApiKey.trim()) {
+    return ui.claudeApiKey.trim()
   }
   
   // 2. Check environment variables (browser or Node)
@@ -117,13 +120,20 @@ function getEffectiveApiKey() {
     return envKey.trim()
   }
   
-  // 3. No API key found
+  // 3. Fallback to module-level key if set by older methods
+  if (apiKey && apiKey.trim()) {
+    return apiKey.trim();
+  }
+
+  // 4. No API key found
   console.warn('⚠️ No Claude API key found in environment variables or explicitly set')
   console.warn('⚠️ Set VITE_CLAUDE_API_KEY in .env file or call setApiKey() method')
   return null
 }
 
 export function setApiKey(key) {
+  // This now primarily serves as a fallback or for non-UI usage.
+  // The main path is through the UI store.
   apiKey = key
 }
 

@@ -17,18 +17,18 @@
             <div class="key-input-wrapper">
               <input 
                 id="claude-key"
-                :value="claudeApiKey"
-                @input="e => claudeApiKeyInput = e.target.value"
-                @blur="updateClaudeApiKey"
+                v-model="claudeApiKeyInput"
                 type="password"
                 placeholder="sk-ant-... (optional)"
                 class="api-key-input"
+                @keyup.enter="saveClaudeApiKey"
               />
-              <div class="key-status">
-                <span v-if="ui.claudeKeyStatus === 'user'" class="status-badge user">👤 User Key</span>
-                <span v-else-if="ui.claudeKeyStatus === 'env'" class="status-badge env">🔧 Environment</span>
-                <span v-else class="status-badge none">❌ Not Set</span>
-              </div>
+              <button @click="saveClaudeApiKey" class="save-key-btn">Save</button>
+            </div>
+            <div class="key-status">
+              <span v-if="ui.claudeKeyStatus === 'user'" class="status-badge user">👤 User Key Set</span>
+              <span v-else-if="ui.claudeKeyStatus === 'env'" class="status-badge env">🔧 Env Key Available</span>
+              <span v-else class="status-badge none">❌ Not Set</span>
             </div>
           </div>
 
@@ -37,18 +37,18 @@
             <div class="key-input-wrapper">
               <input 
                 id="openai-key"
-                :value="openaiApiKey"
-                @input="e => openaiApiKeyInput = e.target.value"
-                @blur="updateOpenAIApiKey"
+                v-model="openaiApiKeyInput"
                 type="password"
                 placeholder="sk-... (optional)"
                 class="api-key-input"
+                @keyup.enter="saveOpenAIApiKey"
               />
-              <div class="key-status">
-                <span v-if="ui.openaiKeyStatus === 'user'" class="status-badge user">👤 User Key</span>
-                <span v-else-if="ui.openaiKeyStatus === 'env'" class="status-badge env">🔧 Environment</span>
-                <span v-else class="status-badge none">❌ Not Set</span>
-              </div>
+              <button @click="saveOpenAIApiKey" class="save-key-btn">Save</button>
+            </div>
+            <div class="key-status">
+              <span v-if="ui.openaiKeyStatus === 'user'" class="status-badge user">👤 User Key Set</span>
+              <span v-else-if="ui.openaiKeyStatus === 'env'" class="status-badge env">🔧 Env Key Available</span>
+              <span v-else class="status-badge none">❌ Not Set</span>
             </div>
           </div>
         </div>
@@ -903,26 +903,29 @@ function importAllData(event) {
   }
 }
 
-function updateClaudeApiKey() {
+function saveClaudeApiKey() {
   const success = ui.setClaudeApiKey(claudeApiKeyInput.value)
-  if (!success && claudeApiKeyInput.value) {
-    alert('❌ Invalid Claude API key format. Key was not saved.')
+  if (success) {
+    alert('✅ Claude API key saved successfully!')
+    claudeApiKeyInput.value = ''
+  } else if (claudeApiKeyInput.value) {
+    alert('❌ Invalid Claude API key format. Key must start with "sk-ant-".')
   }
-  // Clear the input field after attempting to set
-  claudeApiKeyInput.value = ''
 }
 
-function updateOpenAIApiKey() {
+function saveOpenAIApiKey() {
   const success = ui.setOpenaiApiKey(openaiApiKeyInput.value)
-  if (!success && openaiApiKeyInput.value) {
-    alert('❌ Invalid OpenAI API key format. Key was not saved.')
+  if (success) {
+    alert('✅ OpenAI API key saved successfully!')
+    openaiApiKeyInput.value = ''
+  } else if (openaiApiKeyInput.value) {
+    alert('❌ Invalid OpenAI API key format. Key must start with "sk-".')
   }
-  // Clear the input field after attempting to set
-  openaiApiKeyInput.value = ''
 }
 
 async function testClaudeConnection() {
-  if (!claudeApiKey.value && !import.meta.env.VITE_CLAUDE_API_KEY) {
+  const keyToTest = ui.claudeApiKey || import.meta.env.VITE_CLAUDE_API_KEY;
+  if (!keyToTest) {
     alert('❌ No Claude API key configured to test')
     return
   }
@@ -987,6 +990,10 @@ async function resetTokenUsage() {
 }
 
 onMounted(() => {
+  // Initialize local input values from the store if they exist, but keep them separate
+  claudeApiKeyInput.value = ''
+  openaiApiKeyInput.value = ''
+
   // Settings are now primarily driven by the store, which loads from localStorage itself.
   // We can sync component-specific settings here if needed.
   try {
@@ -1305,13 +1312,14 @@ onMounted(() => {
 
 .key-input-wrapper {
   position: relative;
+  display: flex;
 }
 
 .api-key-input {
   width: 100%;
-  padding: 12px 120px 12px 16px;
+  padding: 12px 80px 12px 16px;
   border: 2px solid #e9ecef;
-  border-radius: 8px;
+  border-radius: 8px 0 0 8px;
   background: #f8f9fa;
   color: #495057;
   font-size: 14px;
@@ -1319,19 +1327,27 @@ onMounted(() => {
   transition: all 0.2s ease;
 }
 
-.api-key-input:focus {
-  outline: none;
-  border-color: #667eea;
-  background: white;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+.save-key-btn {
+  position: absolute;
+  right: 0;
+  top: 0;
+  height: 100%;
+  padding: 0 16px;
+  border: 2px solid #667eea;
+  background: #667eea;
+  color: white;
+  border-radius: 0 8px 8px 0;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.2s;
+}
+
+.save-key-btn:hover {
+  background: #5a67d8;
 }
 
 .key-status {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  pointer-events: none;
+  margin-top: 8px;
 }
 
 .status-badge {
