@@ -1,7 +1,7 @@
 // Remove the circular import
 // import { useUIStore } from '@/stores/ui'
 
-const CLAUDE_API_URL = '/api/claude/v1/messages'
+const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages'
 
 // Comprehensive system prompt - enhanced for better conversation flow
 const SYSTEM_PROMPT = `You are simulating the internal life of a character in a pixelated AI town called "MeadowLoop".

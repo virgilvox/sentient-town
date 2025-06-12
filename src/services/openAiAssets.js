@@ -1,6 +1,6 @@
 import { useUIStore } from '@/stores/ui'
 
-const OPENAI_API_URL = '/api/openai/v1/images/generations'
+const OPENAI_API_URL = 'https://api.openai.com/v1/images/generations'
 
 // Get effective OpenAI API key - prioritize user key, fallback to environment
 function getEffectiveOpenAIApiKey() {
