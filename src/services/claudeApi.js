@@ -196,7 +196,6 @@ export async function callClaude(prompt, model = 'haiku', enableCaching = false)
 
 export class ClaudeApiService {
   constructor() {
-    this.apiKey = null
     this.defaultModel = 'claude-3-haiku-20240307'  // Haiku 3 for regular interactions
     this.complexModel = 'claude-3-5-sonnet-20241022'  // Sonnet 3.5 for complex tasks
     
@@ -208,13 +207,12 @@ export class ClaudeApiService {
   }
 
   setApiKey(key) {
-    this.apiKey = key
-    setApiKey(key); // Also set the module-level key
-    console.log('🔑 Claude API key updated in service and module')
+    setApiKey(key); // Set the single, module-level key
+    console.log('🔑 Claude API key updated in module')
   }
 
   getApiKey() {
-    return this.apiKey || getEffectiveApiKey()
+    return getEffectiveApiKey()
   }
 
   estimateTokens(text) {

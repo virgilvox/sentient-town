@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import claudeApi from '../services/claudeApi.js'
+import { setApiKey as setClaudeApiKeyInService } from '../services/claudeApi.js'
 
 export const useUIStore = defineStore('ui', () => {
   // State
@@ -110,12 +110,8 @@ export const useUIStore = defineStore('ui', () => {
       console.log('✅ Claude API key updated in UI store')
       
       // Also set the key in the Claude API service
-      import('@/services/claudeApi').then(({ default: claudeApi }) => {
-        claudeApi.setApiKey(cleanKey)
-        console.log('🔑 Claude API key also set in service')
-      }).catch(error => {
-        console.warn('Could not update Claude service key:', error)
-      })
+      setClaudeApiKeyInService(cleanKey)
+      console.log('🔑 Claude API key also set in service')
       
       saveToLocalStorage()
       return true
@@ -125,12 +121,8 @@ export const useUIStore = defineStore('ui', () => {
       console.log('🗑️ Claude API key cleared')
       
       // Also clear the key in the Claude API service
-      import('@/services/claudeApi').then(({ default: claudeApi }) => {
-        claudeApi.setApiKey('')
-        console.log('🗑️ Claude API key also cleared in service')
-      }).catch(error => {
-        console.warn('Could not clear Claude service key:', error)
-      })
+      setClaudeApiKeyInService('')
+      console.log('🗑️ Claude API key also cleared in service')
       
       saveToLocalStorage()
       return true
