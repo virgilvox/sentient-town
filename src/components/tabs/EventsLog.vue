@@ -163,18 +163,25 @@ const eventsListRef = ref(null)
 const expandedEventsRef = ref(new Set())
 
 const filteredEvents = computed(() => {
-  const totalEvents = events.value.length
-  console.log(`🔍 EventsLog: Total events in store: ${totalEvents}`)
-  
-  const filtered = events.value.filter(event => {
-    const typeMatch = !filterType.value || event.type === filterType.value
-    const characterMatch = !filterCharacter.value || (event.involvedCharacters && event.involvedCharacters.includes(filterCharacter.value))
-    return typeMatch && characterMatch
-  }).sort((a, b) => a.timestamp - b.timestamp)
-  
-  console.log(`🔍 EventsLog: Filtered events count: ${filtered.length} (filter type: "${filterType.value}", filter character: "${filterCharacter.value}")`)
-  
-  return filtered
+  return events.value.filter(event => {
+    const characterMatch = !filterCharacter.value || 
+      (event.involvedCharacters && event.involvedCharacters.includes(filterCharacter.value));
+
+    if (!filterType.value) {
+      return characterMatch; // No type filter, just match character
+    }
+
+    // Handle scenario filter specifically
+    if (filterType.value === 'injection') {
+      const isInjectionEvent = event.type === 'injection' || event.details?.is_scenario_event;
+      return isInjectionEvent && characterMatch;
+    }
+
+    // Handle all other type filters
+    const typeMatch = event.type === filterType.value;
+    return typeMatch && characterMatch;
+
+  }).sort((a, b) => a.timestamp - b.timestamp);
 })
 
 function getEventIcon(type) {
