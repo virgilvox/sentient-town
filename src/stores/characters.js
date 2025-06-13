@@ -618,12 +618,14 @@ export const useCharactersStore = defineStore('characters', () => {
 
   function setCharacterDead(characterId, causeOfDeath = 'Unknown') {
     const character = characters.value[characterId]
-    if (character) {
+    if (character && !character.isDead) {
       character.isDead = true
       character.causeOfDeath = causeOfDeath
       character.deathTimestamp = Date.now()
       character.currentEmotion = 'dead'
       
+      const characterName = character.name;
+
       // Add death memory to the dying character
       const deathMemory = {
         id: `${characterId}_death_${Date.now()}`,
@@ -634,80 +636,20 @@ export const useCharactersStore = defineStore('characters', () => {
       }
       character.memories.push(deathMemory)
       
-      // ENHANCED: Make other characters aware of the death
-      const characterName = character.name
-      
-      // Create simulation event for the death
-      const deathEvent = {
-        type: 'death',
-        timestamp: Date.now(),
-        involvedCharacters: [characterId],
-        summary: `${characterName} has died: ${causeOfDeath}`,
-        tone: 'tragic',
-        details: {
-          character_name: characterName,
-          cause_of_death: causeOfDeath,
-          major_event: true,
-          death_timestamp: Date.now(),
-          location: character.position ? `${character.position.x}, ${character.position.y}` : 'Unknown',
-          zone: character.position?.zone || 'Unknown'
-        }
-      }
-      
-      // Add the death event to simulation (if simulation store is available)
+      // Dispatch a global event that the engine will listen for.
+      // This event contains all the data needed for the engine to process the death.
       try {
-        const simulationStore = useSimulationStore?.()
-        if (simulationStore && typeof simulationStore.addEvent === 'function') {
-          simulationStore.addEvent(deathEvent)
-        }
+        const event = new CustomEvent('character-death', {
+          detail: {
+            characterId: characterId,
+            characterName: characterName,
+            causeOfDeath: causeOfDeath
+          }
+        });
+        window.dispatchEvent(event);
       } catch (error) {
-        console.warn('Could not create death event - simulation store not available:', error)
+        console.warn('Could not dispatch death event:', error)
       }
-      
-      // Add death awareness memories to other characters
-      Object.values(characters.value).forEach(otherCharacter => {
-        if (otherCharacter.id !== characterId && !otherCharacter.isDead) {
-          // Determine emotional weight based on relationship
-          let emotionalWeight = 60 // Base weight for community member death
-          let relationshipContext = ''
-          
-          // Check if they had a relationship
-          const relationship = otherCharacter.relationships?.find(rel => 
-            rel.name === characterName || rel.name.toLowerCase() === characterName.toLowerCase()
-          )
-          
-          if (relationship) {
-            // Adjust weight based on relationship type
-            const relationshipWeights = {
-              'best_friend': 95,
-              'close_friend': 85, 
-              'partner': 98,
-              'romantic_interest': 90,
-              'family': 95,
-              'friend': 75,
-              'neighbor': 65,
-              'colleague': 55,
-              'acquaintance': 45,
-              'rival': 40,
-              'enemy': 25
-            }
-            
-            emotionalWeight = relationshipWeights[relationship.type] || 60
-            relationshipContext = ` They were ${relationship.type || 'known to each other'}.`
-          }
-          
-          // Create death awareness memory
-          const deathAwarenessMemory = {
-            id: `death_awareness_${characterId}_${otherCharacter.id}_${Date.now()}`,
-            timestamp: Date.now(),
-            content: `I learned that ${characterName} has died. Cause: ${causeOfDeath}.${relationshipContext} This is a tragic loss for our community.`,
-            emotional_weight: emotionalWeight,
-            tags: ['death', 'loss', 'community', 'tragic', characterName.toLowerCase()]
-          }
-          
-          otherCharacter.memories.push(deathAwarenessMemory)
-        }
-      })
       
       saveCharacterChanges()
       
@@ -725,6 +667,8 @@ export const useCharactersStore = defineStore('characters', () => {
       character.deathTimestamp = null
       character.currentEmotion = 'confused'
       
+      const characterName = character.name;
+
       // Add resurrection memory to the resurrected character
       const resurrectionMemory = {
         id: `${characterId}_resurrection_${Date.now()}`,
@@ -735,81 +679,20 @@ export const useCharactersStore = defineStore('characters', () => {
       }
       character.memories.push(resurrectionMemory)
       
-      // ENHANCED: Make other characters aware of the resurrection
-      const characterName = character.name
-      
-      // Create simulation event for the resurrection
-      const resurrectionEvent = {
-        type: 'resurrection',
-        timestamp: Date.now(),
-        involvedCharacters: [characterId],
-        summary: `${characterName} has been resurrected: ${resurrectionReason}`,
-        tone: 'miraculous',
-        details: {
-          character_name: characterName,
-          resurrection_reason: resurrectionReason,
-          previous_cause_of_death: previousCause,
-          major_event: true,
-          resurrection_timestamp: Date.now(),
-          location: character.position ? `${character.position.x}, ${character.position.y}` : 'Unknown',
-          zone: character.position?.zone || 'Unknown'
-        }
-      }
-      
-      // Add the resurrection event to simulation (if simulation store is available)
+      // Dispatch a global event for the engine to handle social awareness.
       try {
-        const simulationStore = useSimulationStore?.()
-        if (simulationStore && typeof simulationStore.addEvent === 'function') {
-          simulationStore.addEvent(resurrectionEvent)
-        }
+        const event = new CustomEvent('character-resurrection', {
+          detail: {
+            characterId: characterId,
+            characterName: characterName,
+            resurrectionReason: resurrectionReason,
+            previousCauseOfDeath: previousCause
+          }
+        });
+        window.dispatchEvent(event);
       } catch (error) {
-        console.warn('Could not create resurrection event - simulation store not available:', error)
+        console.warn('Could not dispatch resurrection event:', error)
       }
-      
-      // Add resurrection awareness memories to other characters
-      Object.values(characters.value).forEach(otherCharacter => {
-        if (otherCharacter.id !== characterId && !otherCharacter.isDead) {
-          // Determine emotional weight based on relationship
-          let emotionalWeight = 70 // Base weight for community member resurrection
-          let relationshipContext = ''
-          
-          // Check if they had a relationship
-          const relationship = otherCharacter.relationships?.find(rel => 
-            rel.name === characterName || rel.name.toLowerCase() === characterName.toLowerCase()
-          )
-          
-          if (relationship) {
-            // Adjust weight based on relationship type (resurrections are generally more positive)
-            const relationshipWeights = {
-              'best_friend': 98,
-              'close_friend': 90, 
-              'partner': 99,
-              'romantic_interest': 95,
-              'family': 98,
-              'friend': 85,
-              'neighbor': 75,
-              'colleague': 65,
-              'acquaintance': 55,
-              'rival': 50, // Even rivals might be surprised/impressed
-              'enemy': 30  // Enemies might be disappointed
-            }
-            
-            emotionalWeight = relationshipWeights[relationship.type] || 70
-            relationshipContext = ` We ${relationship.type === 'enemy' ? 'were enemies' : relationship.type === 'rival' ? 'were rivals' : 'had a connection'}.`
-          }
-          
-          // Create resurrection awareness memory
-          const resurrectionAwarenessMemory = {
-            id: `resurrection_awareness_${characterId}_${otherCharacter.id}_${Date.now()}`,
-            timestamp: Date.now(),
-            content: `Incredible news! ${characterName} has returned from the dead through ${resurrectionReason}. They previously died from ${previousCause}.${relationshipContext} This is miraculous and changes everything.`,
-            emotional_weight: emotionalWeight,
-            tags: ['resurrection', 'miracle', 'joy', 'amazement', 'second chance', characterName.toLowerCase()]
-          }
-          
-          otherCharacter.memories.push(resurrectionAwarenessMemory)
-        }
-      })
       
       saveCharacterChanges()
       

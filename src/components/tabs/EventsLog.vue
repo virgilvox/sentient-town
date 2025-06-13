@@ -15,6 +15,7 @@
               <option value="injection">💫 Scenario</option>
               <option value="death">💀 Death</option>
               <option value="resurrection">✨ Resurrection</option>
+              <option value="warning">⚠️ Warning</option>
             </select>
           </div>
           <div class="filter-group">
@@ -87,6 +88,18 @@
               <span class="event-time">{{ formatTime(event.timestamp) }}</span>
             </div>
             <div v-if="event.details" class="event-details">
+              <!-- Display Action Reasoning -->
+              <div v-if="event.details.reasoning" class="detail-item reasoning">
+                <span class="detail-icon">🧠</span>
+                <span class="detail-text"><em>{{ event.details.reasoning }}</em></span>
+              </div>
+              <!-- Display Movement Destination -->
+              <div v-if="event.type === 'movement' && event.details.destination" class="detail-item destination">
+                <span class="detail-icon">🎯</span>
+                <span class="detail-text">
+                  Moving to: <strong>{{ event.details.destination.zone || `(${event.details.destination.x}, ${event.details.destination.y})` }}</strong>
+                </span>
+              </div>
               <div v-if="event.details.injection_id || event.details.is_scenario_event" class="injection-indicator">
                 <strong>💫 Scenario Event:</strong> 
                 <span v-if="event.details.injection_content">{{ event.details.injection_content }}</span>
@@ -150,11 +163,18 @@ const eventsListRef = ref(null)
 const expandedEventsRef = ref(new Set())
 
 const filteredEvents = computed(() => {
-  return events.value.filter(event => {
+  const totalEvents = events.value.length
+  console.log(`🔍 EventsLog: Total events in store: ${totalEvents}`)
+  
+  const filtered = events.value.filter(event => {
     const typeMatch = !filterType.value || event.type === filterType.value
     const characterMatch = !filterCharacter.value || (event.involvedCharacters && event.involvedCharacters.includes(filterCharacter.value))
     return typeMatch && characterMatch
   }).sort((a, b) => a.timestamp - b.timestamp)
+  
+  console.log(`🔍 EventsLog: Filtered events count: ${filtered.length} (filter type: "${filterType.value}", filter character: "${filterCharacter.value}")`)
+  
+  return filtered
 })
 
 function getEventIcon(type) {
@@ -165,7 +185,8 @@ function getEventIcon(type) {
     thought: '💭',
     injection: '💫',
     death: '💀',
-    resurrection: '✨'
+    resurrection: '✨',
+    warning: '⚠️'
   }
   return icons[type] || '📝'
 }
@@ -568,11 +589,36 @@ onUnmounted(() => {
   margin-top: 8px;
   padding-top: 8px;
   border-top: 1px solid #f1f3f4;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.detail-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f8f9fa;
+  padding: 6px 10px;
+  border-radius: 4px;
 }
 
 .detail-icon {
   font-size: 16px;
-  margin-right: 4px;
+  flex-shrink: 0;
+}
+
+.detail-text {
+  color: #495057;
+  line-height: 1.4;
+}
+
+.detail-text em {
+  color: #6c757d;
+}
+
+.detail-text strong {
+  color: #343a40;
 }
 
 .event-footer {

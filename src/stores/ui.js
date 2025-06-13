@@ -14,6 +14,11 @@ export const useUIStore = defineStore('ui', () => {
   const timeSpeed = ref(parseInt(localStorage.getItem('ui_timeSpeed') || '5'))
   const showZoneOverlay = ref(false)
   const isSimulationRunning = ref(false)
+  const tokenUsage = ref({
+    haiku: { input: 0, output: 0, calls: 0 },
+    sonnet: { input: 0, output: 0, calls: 0 },
+    estimatedCost: { haiku: 0, sonnet: 0, total: 0 }
+  })
   
   const canvasState = ref({
     zoom: 1,
@@ -40,7 +45,9 @@ export const useUIStore = defineStore('ui', () => {
     maxMemories: 20,
     strategy: 'fifo', // 'fifo' (oldest deleted) or 'periodic' (wipe every X ticks)
     wipeInterval: 50, // ticks before wiping all memories (for periodic strategy)
-    lastWipeTime: 0 // track last wipe time for periodic strategy
+    lastWipeTime: 0, // track last wipe time for periodic strategy
+    enablePromptCaching: true, // Default to true for cost savings
+    model: 'adaptive' // Default model
   })
 
   // Getters
@@ -292,6 +299,12 @@ export const useUIStore = defineStore('ui', () => {
     saveToLocalStorage()
   }
 
+  // Token usage actions
+  function updateTokenUsage(newTokenUsage) {
+    tokenUsage.value = { ...tokenUsage.value, ...newTokenUsage }
+    saveToLocalStorage()
+  }
+
   function checkApiKeyStatuses() {
     // Check Claude
     const claudeUser = claudeApiKey.value
@@ -328,6 +341,7 @@ export const useUIStore = defineStore('ui', () => {
       openaiApiKey: openaiApiKey.value,
       canvasState: canvasState.value,
       memorySettings: memorySettings.value,
+      tokenUsage: tokenUsage.value
     }
     localStorage.setItem('meadowloop-ui', JSON.stringify(data))
     checkApiKeyStatuses()
@@ -348,6 +362,9 @@ export const useUIStore = defineStore('ui', () => {
         }
         if (data.memorySettings) {
           memorySettings.value = { ...memorySettings.value, ...data.memorySettings }
+        }
+        if (data.tokenUsage) {
+          tokenUsage.value = { ...tokenUsage.value, ...data.tokenUsage }
         }
       }
     } catch (error) {
@@ -370,7 +387,14 @@ export const useUIStore = defineStore('ui', () => {
       maxMemories: 20,
       strategy: 'fifo',
       wipeInterval: 50,
-      lastWipeTime: 0
+      lastWipeTime: 0,
+      enablePromptCaching: true,
+      model: 'adaptive'
+    }
+    tokenUsage.value = {
+      haiku: { input: 0, output: 0, calls: 0 },
+      sonnet: { input: 0, output: 0, calls: 0 },
+      estimatedCost: { haiku: 0, sonnet: 0, total: 0 }
     }
     resetCanvas()
     localStorage.removeItem('meadowloop-ui')
@@ -395,6 +419,7 @@ export const useUIStore = defineStore('ui', () => {
     showZoneOverlay,
     isSimulationRunning,
     canvasState,
+    tokenUsage,
 
     // Zone editing state
     selectedTiles,
@@ -445,6 +470,9 @@ export const useUIStore = defineStore('ui', () => {
     setMemoryStrategy,
     setMemoryWipeInterval,
     updateLastWipeTime,
+    
+    // Token usage actions
+    updateTokenUsage,
     
     // Persistence
     saveToLocalStorage,

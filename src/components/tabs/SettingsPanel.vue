@@ -388,7 +388,7 @@
       <div class="section token-usage-section">
         <h3>💰 Token Usage & Costs</h3>
         
-        <div v-if="tokenUsage" class="token-stats">
+        <div v-if="tokenUsage && (tokenUsage.haiku.calls > 0 || tokenUsage.sonnet.calls > 0)" class="token-stats">
           <div class="cost-summary">
             <div class="total-cost">
               <span class="label">Session Total:</span>
@@ -473,9 +473,6 @@
           </div>
           
           <div class="token-actions">
-            <button @click="refreshTokenUsage" class="btn-refresh">
-              🔄 Refresh
-            </button>
             <button @click="resetTokenUsage" class="btn-reset">
               🗑️ Reset Tracking
             </button>
@@ -484,8 +481,14 @@
         
         <div v-else class="no-token-data">
           <p>No token usage data available yet.</p>
-          <button @click="refreshTokenUsage" class="btn-refresh">
-            🔄 Load Usage Data
+          <button @click="resetTokenUsage" class="btn-reset">
+            🗑️ Load Usage Data
+          </button>
+          <button @click="addTestTokenUsage" class="btn-reset" style="margin-left: 10px;">
+            🧪 Add Test Data
+          </button>
+          <button @click="forceRefreshTokenUsage" class="btn-reset" style="margin-left: 10px;">
+            🔄 Refresh Data
           </button>
         </div>
       </div>
@@ -503,6 +506,8 @@ const simulation = useSimulationStore()
 const zones = useZonesStore()
 const ui = useUIStore()
 const assets = useAssetStore()
+
+const tokenUsage = computed(() => ui.tokenUsage)
 
 const importFileRef = ref(null)
 const autoSaveInterval = ref(0)
@@ -953,39 +958,43 @@ function clearApiKeys() {
 }
 
 // Token usage tracking
-const tokenUsage = ref(null)
-
-async function refreshTokenUsage() {
+async function resetTokenUsage() {
   try {
-    // Dynamically import simulation engine to avoid circular dependencies
     const { simulationEngine } = await import('../../services/simulationEngine.js')
-    
-    const usage = simulationEngine.getTokenUsageStats()
-    
-    if (usage) {
-      tokenUsage.value = usage
-      console.log('📊 Token usage refreshed:', usage)
-    } else {
-      console.warn('⚠️ No token usage data available')
-      tokenUsage.value = null
-    }
+    simulationEngine.resetTokenUsageTracking()
+    simulationEngine.refreshTokenUsage() // Force immediate refresh
   } catch (error) {
-    console.error('❌ Error loading token usage:', error)
-    tokenUsage.value = null
+    console.error('❌ Error resetting token usage:', error)
   }
 }
 
-async function resetTokenUsage() {
+// Test function to add sample token usage (for debugging)
+async function addTestTokenUsage() {
   try {
-    // Dynamically import simulation engine
     const { simulationEngine } = await import('../../services/simulationEngine.js')
-    
-    simulationEngine.resetTokenUsageTracking()
-    await refreshTokenUsage() // Refresh to show zeroed values
-    
-    console.log('🔄 Token usage tracking reset')
+    simulationEngine.aggregateTokenUsage({ input_tokens: 100, output_tokens: 50 }, 'haiku')
+    simulationEngine.aggregateTokenUsage({ input_tokens: 200, output_tokens: 75 }, 'sonnet')
+    console.log('🧪 Added test token usage data')
   } catch (error) {
-    console.error('❌ Error resetting token usage:', error)
+    console.error('❌ Error adding test token usage:', error)
+  }
+}
+
+// Force refresh token usage from simulation engine
+async function forceRefreshTokenUsage() {
+  try {
+    const { simulationEngine } = await import('../../services/simulationEngine.js')
+    console.log('🔍 Simulation engine state:', {
+      isRunning: simulationEngine.state.isRunning,
+      hasStores: !!simulationEngine.stores,
+      hasUIStore: !!simulationEngine.stores?.ui,
+      hasUpdateMethod: !!simulationEngine.stores?.ui?.updateTokenUsage,
+      currentTokenUsage: simulationEngine.getTokenUsageStats()
+    })
+    simulationEngine.refreshTokenUsage()
+    console.log('🔄 Forced token usage refresh')
+  } catch (error) {
+    console.error('❌ Error refreshing token usage:', error)
   }
 }
 
@@ -993,6 +1002,9 @@ onMounted(() => {
   // Initialize local input values from the store if they exist, but keep them separate
   claudeApiKeyInput.value = ''
   openaiApiKeyInput.value = ''
+
+  // Debug: Log current token usage state
+  console.log('🔍 [Settings] Current token usage:', ui.tokenUsage)
 
   // Settings are now primarily driven by the store, which loads from localStorage itself.
   // We can sync component-specific settings here if needed.
@@ -1634,7 +1646,6 @@ onMounted(() => {
   margin-top: 16px;
 }
 
-.btn-refresh,
 .btn-reset {
   padding: 10px 18px;
   border: 2px solid #e9ecef;
@@ -1645,13 +1656,6 @@ onMounted(() => {
   transition: all 0.2s ease;
   font-size: 13px;
   font-weight: 600;
-}
-
-.btn-refresh:hover {
-  background: #17a2b8;
-  border-color: #17a2b8;
-  color: white;
-  transform: translateY(-1px);
 }
 
 .btn-reset:hover {

@@ -1,7 +1,7 @@
 import { reactive } from 'vue'
-import { useCharactersStore } from '../stores/characters.js'
-import { useSimulationStore } from '../stores/simulation.js'
-import { useZonesStore } from '../stores/zones.js'
+// import { useCharactersStore } from '../stores/characters.js'  // No longer needed here
+// import { useSimulationStore } from '../stores/simulation.js' // No longer needed here
+// import { useZonesStore } from '../stores/zones.js'         // No longer needed here
 import { callClaude } from './claudeApi.js'
 import { getSettings } from '../utils/settings.js'
 
@@ -23,6 +23,7 @@ class ComprehensiveSimulationEngine {
       conversationCooldowns: new Map(),
       lastSpeechTime: new Map(),
       pendingMovements: new Map(),
+      characterRetryAttempts: new Map(),
       lastUpdateTime: Date.now(),
       environmentUpdateInterval: 30000, // 30 seconds
       lastEnvironmentUpdate: Date.now(),
@@ -32,17 +33,18 @@ class ComprehensiveSimulationEngine {
     this.stores = null
     this.running = false
     this.saveInterval = null
+    this.tokenUsageInterval = null
   }
 
   async initialize() {
     try {
-      this.stores = {
-        characters: useCharactersStore(),
-        simulation: useSimulationStore(),
-        zones: useZonesStore()
+      // Stores are now set externally via setStores(). This method just loads state.
+      if (!this.stores) {
+        console.error('❌ Engine cannot initialize without stores. Call setStores() first.');
+        return false;
       }
       this.loadState() // Load saved state on initialization
-      console.log('🎮 Simulation engine initialized with stores')
+      console.log('🎮 Simulation engine initialized.')
       return true
     } catch (error) {
       console.error('❌ Failed to initialize simulation engine:', error)
@@ -83,6 +85,8 @@ class ComprehensiveSimulationEngine {
       
       // Save state periodically
       this.saveInterval = setInterval(() => this.saveState(), 30000); // every 30 seconds
+      // Start token usage refresh
+      this.tokenUsageInterval = setInterval(() => this.refreshTokenUsage(), 5000);
       
       // Update simulation store
       this.stores.simulation.startSimulation()
@@ -111,7 +115,98 @@ class ComprehensiveSimulationEngine {
       clearInterval(this.saveInterval)
       this.saveInterval = null
     }
+    if (this.tokenUsageInterval) {
+      clearInterval(this.tokenUsageInterval)
+      this.tokenUsageInterval = null
+    }
+    window.removeEventListener('character-death', this.handleCharacterDeath);
+    window.removeEventListener('character-resurrection', this.handleCharacterResurrection);
     console.log('⏹️ Simulation engine stopped')
+  }
+
+  handleCharacterDeath(event) {
+    const { characterId, characterName, causeOfDeath } = event.detail;
+    const character = this.stores.characters.getCharacter(characterId);
+
+    this.stores.simulation.addEvent({
+      type: 'death',
+      timestamp: Date.now(),
+      involvedCharacters: [characterId],
+      summary: `${characterName} has died: ${causeOfDeath}`,
+      tone: 'tragic',
+      details: {
+        character_name: characterName,
+        cause_of_death: causeOfDeath,
+        major_event: true,
+        death_timestamp: Date.now(),
+        location: character.position ? `${character.position.x}, ${character.position.y}` : 'Unknown',
+        zone: character.position?.zone || 'Unknown'
+      }
+    });
+
+    // Add awareness memories to all other living characters
+    Object.values(this.stores.characters.charactersList).forEach(otherCharacter => {
+      if (otherCharacter.id !== characterId && !otherCharacter.isDead) {
+        let emotionalWeight = 60;
+        let relationshipContext = '';
+        const relationship = otherCharacter.relationships?.find(rel => rel.name === characterName || rel.name.toLowerCase() === characterName.toLowerCase());
+        if (relationship) {
+          const relationshipWeights = { 'best_friend': 95, 'close_friend': 85, 'partner': 98, 'romantic_interest': 90, 'family': 95, 'friend': 75, 'neighbor': 65, 'colleague': 55, 'acquaintance': 45, 'rival': 40, 'enemy': 25 };
+          emotionalWeight = relationshipWeights[relationship.type] || 60;
+          relationshipContext = ` They were ${relationship.type || 'known to each other'}.`;
+        }
+        this.stores.characters.addMemory(otherCharacter.id, {
+          id: `death_awareness_${characterId}_${otherCharacter.id}_${Date.now()}`,
+          timestamp: Date.now(),
+          content: `I learned that ${characterName} has died. Cause: ${causeOfDeath}.${relationshipContext} This is a tragic loss for our community.`,
+          emotional_weight: emotionalWeight,
+          tags: ['death', 'loss', 'community', 'tragic', characterName.toLowerCase()]
+        });
+      }
+    });
+  }
+
+  handleCharacterResurrection(event) {
+    const { characterId, characterName, resurrectionReason, previousCauseOfDeath } = event.detail;
+    const character = this.stores.characters.getCharacter(characterId);
+
+    this.stores.simulation.addEvent({
+      type: 'resurrection',
+      timestamp: Date.now(),
+      involvedCharacters: [characterId],
+      summary: `${characterName} has been resurrected: ${resurrectionReason}`,
+      tone: 'miraculous',
+      details: {
+        character_name: characterName,
+        resurrection_reason: resurrectionReason,
+        previous_cause_of_death: previousCauseOfDeath,
+        major_event: true,
+        resurrection_timestamp: Date.now(),
+        location: character.position ? `${character.position.x}, ${character.position.y}` : 'Unknown',
+        zone: character.position?.zone || 'Unknown'
+      }
+    });
+
+    // Add awareness memories to all other living characters
+    Object.values(this.stores.characters.charactersList).forEach(otherCharacter => {
+      if (otherCharacter.id !== characterId && !otherCharacter.isDead) {
+        let emotionalWeight = 70;
+        let relationshipContext = '';
+        const relationship = otherCharacter.relationships?.find(rel => rel.name === characterName || rel.name.toLowerCase() === characterName.toLowerCase());
+        if (relationship) {
+          const relationshipWeights = { 'best_friend': 98, 'close_friend': 90, 'partner': 99, 'romantic_interest': 95, 'family': 98, 'friend': 85, 'neighbor': 75, 'colleague': 65, 'acquaintance': 55, 'rival': 50, 'enemy': 30 };
+          emotionalWeight = relationshipWeights[relationship.type] || 70;
+          relationshipContext = ` We ${relationship.type === 'enemy' ? 'were enemies' : relationship.type === 'rival' ? 'were rivals' : 'had a connection'}.`;
+        }
+        this.stores.characters.addMemory(otherCharacter.id, {
+          id: `resurrection_awareness_${characterId}_${otherCharacter.id}_${Date.now()}`,
+          timestamp: Date.now(),
+          content: `Incredible news! ${characterName} has returned from the dead through ${resurrectionReason}. They previously died from ${previousCauseOfDeath}.${relationshipContext} This is miraculous and changes everything.`,
+          emotional_weight: emotionalWeight,
+          tags: ['resurrection', 'miracle', 'joy', 'amazement', 'second chance', characterName.toLowerCase()]
+        });
+      }
+    });
   }
 
   async processTick() {
@@ -160,10 +255,14 @@ class ComprehensiveSimulationEngine {
           const context = await this.buildCharacterContext(character);
           const action = await this.getCharacterAction(character, context);
           if (action) {
+            this.state.characterRetryAttempts.delete(character.id); // Clear retries on success
             characterActions.push({ character, action, context });
           }
         } catch (error) {
           console.error(`❌ Error generating action for ${character.name}:`, error);
+          if (error.status === 503) {
+            this.handleApiOverload(character);
+          }
         }
       }
 
@@ -201,6 +300,11 @@ class ComprehensiveSimulationEngine {
             }
           }
         }
+      }
+
+      // Update token usage in UI store periodically
+      if (this.state.currentTick % 5 === 0) {
+        this.refreshTokenUsage();
       }
 
     } catch (error) {
@@ -299,35 +403,29 @@ class ComprehensiveSimulationEngine {
 
   // RESTORED: Sophisticated context building from original
   async buildCharacterContext(character) {
-    const nearbyCharacters = this.findNearbyCharacters(character)
-    
-    // Find ongoing conversation if any
+    const nearbyCharacters = this.findNearbyCharacters(character);
     const ongoingConversation = this.stores.simulation.conversations.find(conv => 
       conv.participants.includes(character.id) && 
       Date.now() - new Date(conv.lastMessageAt || conv.startTime).getTime() < 300000 // 5 minutes
-    )
-
-    // Check for pending injections
-    const pendingInjections = this.stores.simulation.pendingInjections || []
+    );
+    const pendingInjections = this.stores.simulation.pendingInjections || [];
     const injection = pendingInjections.find(inj => 
       !inj.processed && (inj.target === 'global' || inj.target === character.id)
-    )
+    );
 
-    // Build recent events context
-    const recentEvents = this.stores.simulation.events
-      .filter(event => Date.now() - new Date(event.timestamp).getTime() < 3600000) // Last hour
-      .slice(-5)
-      .map(event => event.description || event.summary)
-
-    // Build comprehensive context object
-    const context = {
+    // Initial context build
+    let context = {
       character: character,
-      nearbyCharacters: nearbyCharacters,
+      nearbyCharacters: nearbyCharacters.map(c => c.name).join(', '),
       currentLocation: this.getCharacterLocationName(character),
       environment: this.stores.simulation.getEnvironmentDescription(),
-      recentEvents: recentEvents,
-      memorySummary: await this.getMemorySummary(character)
-    }
+      injectedScenario: injection,
+    };
+
+    // Intelligent Memory Handling
+    const memoryContext = await this.buildMemoryContext(character);
+    Object.assign(context, memoryContext);
+
 
     // Add conversation response priority if someone nearby spoke recently
     if (nearbyCharacters.length > 0) {
@@ -353,127 +451,148 @@ class ComprehensiveSimulationEngine {
       console.log(`[CONTEXT] Injecting scenario for ${character.name}: "${injection.content}"`)
     }
 
-    let dynamicPrompt = '';
-    // Add scenario injection if present
-    if (context.injectedScenario) {
-      dynamicPrompt += `\n\n🎬 SCENARIO EVENT: ${context.injectedScenario.content}`
-      
-      dynamicPrompt += `\n\nRespond authentically as ${character.name} to this scenario. Show realistic emotional reactions and make decisions that reflect your personality.`
-    }
-
-    // Add recent events - FIXED: Handle both array and string formats
-    if (context.recentEvents) {
-      dynamicPrompt += `\n\nRECENT EVENTS:\n${context.recentEvents.join('\n')}`
-    }
-
-    // Add available zones for movement
-    const walkableZones = this.stores.zones.zones.filter(zone => 
-      zone.walkable !== false && !['wall', 'building', 'obstacle', 'solid'].includes(zone.type)
-    )
-    context.availableZones = walkableZones.map(zone => zone.name || zone.type).join(', ')
-
     return context
   }
 
+  async buildMemoryContext(character) {
+    // More aggressive reduction of context to prevent API overload errors.
+    // Get the 5 most recent memories, sorted by timestamp.
+    const memories = [...character.memories]
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .slice(0, 5);
+
+    // Get the 3 most recent events that directly involve the character.
+    const recentEvents = this.stores.simulation.events
+      .filter(event => event.involvedCharacters.includes(character.id))
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .slice(0, 3)
+      .map(event => event.summary);
+
+    return { memories, recentEvents };
+  }
+
   async getCharacterAction(character, context) {
-    // Restore natural AI-driven action selection
-    const settings = getSettings(this.stores)
+    const settings = getSettings(this.stores);
     try {
-      const claudeApiModule = await import('./claudeApi.js')
-      const claudeService = claudeApiModule.default
+      const claudeApiModule = await import('./claudeApi.js');
+      const claudeService = claudeApiModule.default;
+      
       const useComplexModel = settings.simulationModel === 'sonnet' || 
-        (settings.simulationModel === 'adaptive' && Math.random() < 0.2)
+        (settings.simulationModel === 'adaptive' && (
+          (context.nearbyCharacters && context.nearbyCharacters.length > 1) ||
+          context.ongoingConversation ||
+          context.injectedScenario
+        ));
+
+      const response = await claudeService.getCharacterAction(character, context, useComplexModel);
       
-      const action = await claudeService.getCharacterAction(context, useComplexModel)
-      
-      if (action) {
-        return action
+      if (response && response.usage) {
+        this.aggregateTokenUsage(response.usage, useComplexModel ? 'sonnet' : 'haiku');
+      }
+
+      if (response && response.action) {
+        return response.action;
       } else {
-        return null // No action on error
+        return null;
       }
     } catch (error) {
       console.error(`❌ Error getting action for ${character.name}:`, error)
-      return null // No action on error
+      return null;
     }
+  }
+
+  aggregateTokenUsage(usage, modelType) {
+    if (!this.state.tokenUsage[modelType]) {
+      this.state.tokenUsage[modelType] = { input: 0, output: 0, calls: 0 };
+    }
+    this.state.tokenUsage[modelType].input += usage.input_tokens || 0;
+    this.state.tokenUsage[modelType].output += usage.output_tokens || 0;
+    this.state.tokenUsage[modelType].calls += 1;
+    this.updateCostEstimate();
+    this.refreshTokenUsage(); // Update UI immediately
   }
 
   async executeCharacterAction(character, action, context) {
-    console.log(`[EXECUTE] ${character.name}: action=${action.action} dialogue=${action.dialogue}`)
-    
-    // Always create a thought event for the character's internal monologue
+    // 1. Process thoughts and emotion first, as they provide context for the action.
     if (action.internal_thoughts) {
-      this.stores.simulation.addEvent({
-        type: 'thought',
-        summary: `${character.name} thinks: "${action.internal_thoughts}"`,
-        details: {
-          character: character.name,
-          characterId: character.id,
-          thought: action.internal_thoughts,
-          reasoning: action.action_reasoning,
-          location: this.getCharacterLocationName(character)
-        },
-        involvedCharacters: [character.id],
-        location: this.getCharacterLocationName(character),
-        tone: action.emotion || 'neutral'
-      });
+        this.stores.simulation.addEvent({
+            type: 'thought',
+            summary: `${character.name} thinks: "${action.internal_thoughts}"`,
+            details: { reasoning: action.action_reasoning },
+            involvedCharacters: [character.id],
+            location: this.getCharacterLocationName(character),
+            tone: action.emotion || 'neutral'
+        });
+        this.addMemoryToCharacter(character, `I was thinking: ${action.internal_thoughts}`, 3);
     }
-
-    if (!action || !action.action) {
-      console.warn(`[EXECUTE] Aborting: no action for ${character.name}`)
-      return
-    }
-    switch (action.action) {
-      case 'speak':
-        await this.processSpeech(character, action.dialogue, action.action_reasoning)
-        break
-      case 'approach_character':
-        await this.handleApproachCharacter(character, action)
-        break
-      case 'move_to_zone':
-        await this.handleMoveToZone(character, action)
-        break
-      case 'stay_idle':
-        await this.handleStayIdle(character, action)
-        break
-      default:
-        console.log(`📝 ${character.name}: ${action.internal_thoughts}`)
-        break
-    }
-
-    // Update character emotion and add memory
     if (action.emotion && action.emotion !== character.currentEmotion) {
-      this.stores.characters.updateCharacterEmotion(character.id, action.emotion)
+        this.stores.characters.updateCharacterEmotion(character.id, action.emotion);
     }
 
-    if (action.internal_thoughts) {
-      this.addMemoryToCharacter(character, `I was thinking: ${action.internal_thoughts}`, 3)
+    // 2. Log the rich, descriptive action for storytelling purposes.
+    if (action.action_description) {
+        this.stores.simulation.addEvent({
+            type: 'action',
+            summary: `${character.name} ${action.action_description}`,
+            details: { reasoning: action.action_reasoning },
+            involvedCharacters: [character.id],
+            location: this.getCharacterLocationName(character),
+            tone: action.emotion || 'neutral'
+        });
+    }
+
+    // 3. Execute the specific, machine-readable movement command.
+    const move = action.movement_command;
+    if (move && move.command && move.command !== 'stay_idle') {
+      let targetDetails = {};
+      switch (move.command) {
+        case 'move_to_zone':
+          targetDetails = await this.handleMoveToZone(character, move.target, context);
+          break;
+        case 'approach_character':
+          targetDetails = await this.handleApproachCharacter(character, move.target, context);
+          break;
+      }
+      // Create a specific 'movement' event if a move occurred.
+      if (targetDetails.moved) {
+        this.stores.simulation.addEvent({
+            type: 'movement',
+            summary: `${character.name} is heading towards ${move.target}.`,
+            details: {
+                reasoning: action.action_reasoning,
+                destination: targetDetails.destination,
+            },
+            involvedCharacters: [character.id],
+            location: this.getCharacterLocationName(character),
+            tone: 'neutral'
+        });
+      }
+    }
+
+    // 4. Process dialogue
+    if (action.dialogue) {
+      await this.processSpeech(character, action.dialogue, action.action_reasoning, context);
     }
     
-    // Process injection if there was one
-    if (context && context.injectedScenario && typeof context.injectedScenario === 'object' && context.injectedScenario.id) {
-      const injection = context.injectedScenario
-      if (injection.target === 'global') {
-        // For global injections, track which characters have processed it
-        if (!injection.processedBy) {
-          injection.processedBy = []
+    // Process scenario injection tracking
+    if (context.injectedScenario) {
+        const injection = context.injectedScenario;
+        if (injection.target === 'global') {
+            if (!injection.processedBy) injection.processedBy = [];
+            if (!injection.processedBy.includes(character.id)) {
+                injection.processedBy.push(character.id);
+            }
+            const totalCharacters = this.stores.characters.charactersList.filter(c => !c.isDead).length;
+            if (injection.processedBy.length >= totalCharacters) {
+                this.stores.simulation.markInjectionProcessed(injection.id);
+            }
+        } else {
+            this.stores.simulation.markInjectionProcessed(injection.id);
         }
-        if (!injection.processedBy.includes(character.id)) {
-          injection.processedBy.push(character.id)
-        }
-        
-        // Check if all characters have processed this injection
-        const totalCharacters = this.stores.characters.charactersList.filter(c => !c.isDead).length
-        if (injection.processedBy.length >= totalCharacters) {
-          this.stores.simulation.markInjectionProcessed(injection.id)
-        }
-      } else {
-        // Single character injection
-        this.stores.simulation.markInjectionProcessed(injection.id)
-      }
     }
   }
 
-  async processSpeech(character, dialogue, reasoning) {
+  async processSpeech(character, dialogue, reasoning, context = {}) {
     if (!dialogue || dialogue.trim() === '') {
       console.warn(`💬 [${character.name}] Tried to speak but dialogue was empty`)
       return
@@ -511,17 +630,26 @@ class ComprehensiveSimulationEngine {
     }
 
     // Always log a conversation event, even if conversationId is null
+    const eventDetails = {
+      speaker: character.name,
+      speakerId: character.id,
+      dialogue: dialogue,
+      nearbyCharacters: nearbyCharacters.map(nc => nc.name),
+      location: this.getCharacterLocationName(character),
+      reasoning: reasoning
+    };
+
+    if (context.injectedScenario) {
+      eventDetails.injection_id = context.injectedScenario.id;
+      eventDetails.injection_content = context.injectedScenario.content;
+      eventDetails.is_scenario_event = true;
+      eventDetails.injection_target = context.injectedScenario.target;
+    }
+
     this.stores.simulation.addEvent({
       type: 'conversation',
       summary: `${character.name} said: "${dialogue}"`,
-      details: {
-        speaker: character.name,
-        speakerId: character.id,
-        dialogue: dialogue,
-        nearbyCharacters: nearbyCharacters.map(nc => nc.name),
-        location: this.getCharacterLocationName(character),
-        reasoning: reasoning
-      },
+      details: eventDetails,
       involvedCharacters: [character.id, ...nearbyCharacters.map(nc => nc.id)],
       location: this.getCharacterLocationName(character),
       tone: character.currentEmotion || 'neutral'
@@ -542,20 +670,13 @@ class ComprehensiveSimulationEngine {
     })
   }
 
-  async handleApproachCharacter(character, action) {
-    let target = null;
-    if (action.targetCharacterName) {
-      target = this.stores.characters.charactersList.find(c => c.name === action.targetCharacterName && c.id !== character.id && !c.isDead);
-    }
+  async handleApproachCharacter(character, targetName, context = {}) {
+    let target = this.stores.characters.charactersList.find(c => c.name.toLowerCase() === targetName.toLowerCase() && c.id !== character.id && !c.isDead);
     
-    // If no specific target from AI, or target not found, find a random nearby character
     if (!target) {
-      const nearbyCharacters = this.findNearbyCharacters(character, 8); // Wider search
-      if (nearbyCharacters.length === 0) return; // No one to approach
-      target = nearbyCharacters[Math.floor(Math.random() * nearbyCharacters.length)];
+        console.log(`[APPROACH] Could not find target character: ${targetName}`);
+        return { moved: false };
     }
-
-    if (!target) return; // Still no target, abort
 
     const otherCharacters = this.stores.characters.charactersList.filter(c => c.id !== character.id);
 
@@ -577,7 +698,7 @@ class ComprehensiveSimulationEngine {
 
     if (!validTargetPosition) {
         console.log(`[APPROACH] No valid spot to approach ${target.name} for ${character.name}`);
-        return; // Can't approach
+        return { moved: false }; // Can't approach
     }
 
     // Update affinity since an approach is a positive social action
@@ -594,34 +715,40 @@ class ComprehensiveSimulationEngine {
     )
     
     if (newPosition && (newPosition.x !== character.position.x || newPosition.y !== character.position.y)) {
-      this.moveCharacterToPosition(character, newPosition)
+      this.moveCharacterToPosition(character, newPosition, null, context)
+      return { moved: true, destination: newPosition };
     }
+    return { moved: false };
   }
 
-  async handleMoveToZone(character, action) {
-    if (!action.targetX || !action.targetY) {
-      return
+  async handleMoveToZone(character, zoneName, context = {}) {
+    if (!zoneName) {
+        console.warn(`[MOVE] No zoneName provided for ${character.name}`);
+        return { moved: false };
+    }
+    const zone = this.stores.zones.zonesList.find(z => z.name.toLowerCase() === zoneName.toLowerCase());
+    if (!zone || zone.tiles.length === 0) {
+        console.warn(`[MOVE] Could not find or no tiles in zone: ${zoneName}`);
+        return { moved: false };
     }
     const otherCharacters = this.stores.characters.charactersList.filter(c => c.id !== character.id);
     const newPosition = this.stores.zones.getValidMovePosition(
       character.position.x, 
       character.position.y, 
-      action.targetX,
-      action.targetY,
+      zone.tiles[0].x,
+      zone.tiles[0].y,
       7,
       otherCharacters
     )
     if (newPosition && (newPosition.x !== character.position.x || newPosition.y !== character.position.y)) {
-      this.moveCharacterToPosition(character, newPosition, action.targetZone || 'Unknown')
+      this.moveCharacterToPosition(character, newPosition, zone.name || 'Unknown', context)
+      return { moved: true, destination: newPosition };
     }
-  }
-
-  async handleStayIdle(character, action) {
-    this.addMemoryToCharacter(character, action.action_reasoning || 'I decided to stay where I am', 2)
+    return { moved: false };
   }
 
   // Character movement functions
-  moveCharacterToPosition(character, newPosition, zoneName = null) {
+  moveCharacterToPosition(character, newPosition, zoneName = null, context = {}) {
     const oldPosition = { ...character.position }
     this.stores.characters.moveCharacter(character.id, {
       x: newPosition.x,
@@ -629,16 +756,26 @@ class ComprehensiveSimulationEngine {
       zone: zoneName || character.position.zone
     })
     const updated = this.stores.characters.getCharacter(character.id)
+    
+    const eventDetails = {
+      character: character.name,
+      characterId: character.id,
+      fromPosition: oldPosition,
+      toPosition: newPosition,
+      zone: zoneName || character.position.zone
+    };
+
+    if (context.injectedScenario) {
+      eventDetails.injection_id = context.injectedScenario.id;
+      eventDetails.injection_content = context.injectedScenario.content;
+      eventDetails.is_scenario_event = true;
+      eventDetails.injection_target = context.injectedScenario.target;
+    }
+
     this.stores.simulation.addEvent({
       type: 'movement',
       summary: `${character.name} moved from (${oldPosition.x},${oldPosition.y}) to (${newPosition.x},${newPosition.y})`,
-      details: {
-        character: character.name,
-        characterId: character.id,
-        fromPosition: oldPosition,
-        toPosition: newPosition,
-        zone: zoneName || character.position.zone
-      },
+      details: eventDetails,
       involvedCharacters: [character.id],
       location: zoneName || this.getCharacterLocationName(character),
       tone: 'neutral'
@@ -888,34 +1025,38 @@ class ComprehensiveSimulationEngine {
   }
 
   getTokenUsageStats() {
-    // Import Claude service and get latest token usage
-    import('./claudeApi.js').then(({ getSessionTokenUsage }) => {
-      const usage = getSessionTokenUsage();
-      if (usage) {
-        this.state.tokenUsage.haiku = usage.haiku;
-        this.state.tokenUsage.sonnet = usage.sonnet;
-        this.state.tokenUsage.estimatedCost = usage.estimatedCost;
-      }
-    });
     return this.state.tokenUsage;
   }
 
+  refreshTokenUsage() {
+    if (this.stores?.ui?.updateTokenUsage) {
+      const stats = this.getTokenUsageStats();
+      console.log('🔄 Refreshing token usage in UI:', stats);
+      this.stores.ui.updateTokenUsage(stats);
+    } else {
+      console.warn('⚠️ Cannot refresh token usage: UI store not available or updateTokenUsage method missing');
+    }
+  }
+
   resetTokenUsageTracking() {
-    import('./claudeApi.js').then(({ default: claudeApi }) => {
-      claudeApi.resetTokenUsage();
-    });
     this.state.tokenUsage = {
       haiku: { input: 0, output: 0, calls: 0 },
       sonnet: { input: 0, output: 0, calls: 0 },
       estimatedCost: { haiku: 0, sonnet: 0, total: 0 }
     }
+    this.updateCostEstimate()
     console.log('🔄 Token usage tracking reset via simulation engine')
   }
 
   // Store integration methods
   setStores(stores) {
     this.stores = stores
-    console.log('🔗 Simulation engine stores updated')
+    // Bind event handlers
+    this.handleCharacterDeath = this.handleCharacterDeath.bind(this);
+    this.handleCharacterResurrection = this.handleCharacterResurrection.bind(this);
+    window.addEventListener('character-death', this.handleCharacterDeath);
+    window.addEventListener('character-resurrection', this.handleCharacterResurrection);
+    console.log('🔗 Simulation engine stores updated and event listeners added')
   }
 
   async testClaudeConnection() {
@@ -992,12 +1133,34 @@ class ComprehensiveSimulationEngine {
     }
   }
 
-  async getMemorySummary(character) {
-    if (character.memories.length > 10 && (this.state.currentTick % 20 === 0)) {
-      const claudeApiModule = await import('./claudeApi.js');
-      return await claudeApiModule.default.summarizeMemories(character.memories.slice(-15), character.name);
+  async getMemorySummary(character, memoriesToSummarize) {
+    try {
+      const { useUIStore } = window.stores;
+      const ui = useUIStore ? useUIStore() : null;
+      const apiKey = ui ? ui.claudeApiKey : null;
+
+      const response = await fetch('/.netlify/functions/summarize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          memories: memoriesToSummarize,
+          characterName: character.name,
+          apiKey,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Summarize function failed with status ${response.status}`);
+      }
+      const data = await response.json();
+      if (data.usage) {
+        this.aggregateTokenUsage(data.usage, 'haiku');
+      }
+      return data.summary;
+    } catch (error) {
+      console.warn('Memory summarization failed:', error);
+      return null;
     }
-    return null;
   }
 
   async consolidateMemoriesForCharacter(characterId) {
@@ -1008,30 +1171,55 @@ class ComprehensiveSimulationEngine {
     }
 
     console.log(`[Memory] Starting consolidation for ${character.name}...`);
-    const claudeApiModule = await import('./claudeApi.js');
-    const recentMemories = character.memories.slice(-20); // Consolidate last 20 memories
+    
+    try {
+      const { useUIStore } = window.stores;
+      const ui = useUIStore ? useUIStore() : null;
+      const apiKey = ui ? ui.claudeApiKey : null;
+      const recentMemories = character.memories.slice(-20);
 
-    const result = await claudeApiModule.default.consolidateMemories(recentMemories, character.name);
+      const response = await fetch('/.netlify/functions/consolidate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          memories: recentMemories,
+          characterName: character.name,
+          apiKey,
+        }),
+      });
 
-    if (result && result.consolidated_memory) {
-      const newMemory = {
-        id: `consolidated_${Date.now()}`,
-        timestamp: Date.now(),
-        content: result.consolidated_memory,
-        emotional_weight: 85, // Consolidated memories are highly important
-        tags: ['consolidated', ...result.tags],
-        isConsolidated: true,
-        originalMemoryCount: recentMemories.length
-      };
+      if (!response.ok) {
+        throw new Error(`Consolidate function failed with status ${response.status}`);
+      }
 
-      // Replace old memories with the new consolidated one
-      const olderMemories = character.memories.slice(0, -20);
-      const updatedMemories = [...olderMemories, newMemory];
-      
-      this.stores.characters.updateCharacter(character.id, { memories: updatedMemories });
-      console.log(`[Memory] Consolidated ${recentMemories.length} memories into 1 for ${character.name}.`);
-    } else {
-      console.warn(`[Memory] Consolidation failed for ${character.name}.`);
+      const result = await response.json();
+
+      if (result.usage) {
+        this.aggregateTokenUsage(result.usage, 'haiku');
+      }
+
+      if (result && result.consolidated_memory) {
+        const newMemory = {
+          id: `consolidated_${Date.now()}`,
+          timestamp: Date.now(),
+          content: result.consolidated_memory,
+          emotional_weight: 85, // Consolidated memories are highly important
+          tags: ['consolidated', ...result.tags],
+          isConsolidated: true,
+          originalMemoryCount: recentMemories.length
+        };
+
+        // Replace old memories with the new consolidated one
+        const olderMemories = character.memories.slice(0, -20);
+        const updatedMemories = [...olderMemories, newMemory];
+        
+        this.stores.characters.updateCharacter(character.id, { memories: updatedMemories });
+        console.log(`[Memory] Consolidated ${recentMemories.length} memories into 1 for ${character.name}.`);
+      } else {
+        console.warn(`[Memory] Consolidation failed for ${character.name}.`);
+      }
+    } catch (error) {
+      console.error('Error consolidating memories:', error);
     }
   }
 
@@ -1054,6 +1242,37 @@ class ComprehensiveSimulationEngine {
         console.error("Failed to load engine state:", e);
       }
     }
+  }
+
+  handleApiOverload(character) {
+    const attempts = (this.state.characterRetryAttempts.get(character.id) || 0) + 1;
+    this.stores.simulation.addEvent({
+      type: 'warning',
+      summary: `API rate limit hit for ${character.name}. Retrying... (Attempt ${attempts})`,
+      details: {
+        character: character.name,
+        characterId: character.id,
+        errorType: 'rate_limit',
+        retryAttempt: attempts,
+      },
+      involvedCharacters: [character.id],
+      tone: 'warning'
+    });
+
+    if (attempts > 3) {
+      console.error(`[RETRY] Max retries reached for ${character.name}. Giving up for this tick.`);
+      this.state.characterRetryAttempts.delete(character.id);
+      return;
+    }
+
+    const delay = (2 ** attempts) * 1000; // Exponential backoff: 2s, 4s, 8s
+    console.warn(`[RETRY] API Overloaded. Retrying action for ${character.name} in ${delay / 1000}s (attempt ${attempts})`);
+    this.state.characterRetryAttempts.set(character.id, attempts);
+
+    setTimeout(() => {
+      console.log(`[RETRY] Re-processing action for ${character.name}`);
+      this.processCharacterAction(character);
+    }, delay);
   }
 }
 

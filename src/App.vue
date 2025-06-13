@@ -43,6 +43,14 @@ if (typeof window !== 'undefined') {
 const isLoading = ref(true)
 
 onMounted(async () => {
+  // Initialize and configure simulation engine with all stores first
+  simulationEngine.setStores({
+    characters,
+    simulation,
+    zones,
+    ui
+  });
+
   try {
     
     // Initialize stores in proper order with dependencies
@@ -62,7 +70,7 @@ onMounted(async () => {
     // Wait for next tick to ensure all stores are ready
     await nextTick()
     
-    // Initialize and configure simulation engine with all stores
+    // Initialize the engine now that stores are ready
     await simulationEngine.initialize()
     
     // Check if simulation should auto-start
